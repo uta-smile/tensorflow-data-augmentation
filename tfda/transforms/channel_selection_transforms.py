@@ -39,7 +39,7 @@ Channel Selection Transforms
 from dataclasses import dataclass
 
 from tfda.base import DTFD, TFD, TFDABase
-
+from warnings import warn
 import tensorflow as tf
 
 
@@ -64,10 +64,53 @@ class DataChannelSelectionTransform(TFDABase):
         return data_dict
 
 
+@dataclass
+class SegChannelSelectionTransform(TFDABase):
+    """Segmentations may have more than one channel.
+
+    This transform selects segmentation channels.
+
+    Args:
+        channels (list of int): List of channels to be kept.
+    """
+
+    channels: list[int]
+    label_key: str = "seg"
+    keep_discarded: bool = False
+
+    def call(self, **data_dict: TFD) -> DTFD:
+        """Call the transform."""
+        seg = data_dict.get(self.label_key)
+
+        if seg is None:
+            warn(
+                "You used SegChannelSelectionTransform but "
+                "there is no 'seg' key in your data_dict, returning "
+                "data_dict unmodified",
+                Warning,
+            )
+        else:
+            # TODO: keep_discarded
+            # if self.keep_discarded:
+            data_dict[self.label_key] = seg.map(
+                lambda x: tf.stack(
+                    list(map(lambda i: x[:, i], self.channels)), axis=1
+                )
+            )
+        return data_dict
+
+
 if __name__ == "__main__":
     dataset = tf.data.Dataset.range(10).batch(5).batch(2)
+
     dcst = DataChannelSelectionTransform([2, 3, 1])
     assert tf.math.reduce_all(
         next(iter(dcst(data=dataset)["data"]))
         == tf.cast([[2, 3, 1], [7, 8, 6]], dtype=tf.int64)
+    )
+
+    scst = SegChannelSelectionTransform([0, 2])
+    assert tf.math.reduce_all(
+        next(iter(scst(seg=dataset)["seg"]))
+        == tf.cast([[0, 2], [5, 7]], dtype=tf.int64)
     )
