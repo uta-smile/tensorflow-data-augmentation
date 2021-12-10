@@ -46,7 +46,8 @@ import tensorflow as tf
 # Types
 from typing import Any, Sequence, TypeVar, Union
 
-DAny = dict[str, Any]
+TFD = tf.data.Dataset
+DTFD = dict[str, tf.data.Dataset]
 T = TypeVar("T")
 Seqs = Union[Sequence[T], chain[T]]
 
@@ -59,7 +60,7 @@ class TFDABase:
         """Call the base transform."""
         raise NotImplementedError("Abstract, so implement")
 
-    def __call__(self, **kws: Any) -> DAny:
+    def __call__(self, **kws: Any) -> DTFD:
         """Call call function."""
         return self.call(**kws)
 
@@ -71,7 +72,7 @@ class RndTransform(TFDABase):
     transform: TFDABase
     prob: float = 0.5
 
-    def call(self, **kws: Any) -> DAny:
+    def call(self, **kws: Any) -> DTFD:
         """Call the Rnd transform."""
         return tf.random.uniform() < self.prob and self.transform(**kws) or kws
 
@@ -79,7 +80,7 @@ class RndTransform(TFDABase):
 class IDTransform(TFDABase):
     """Identity transform."""
 
-    def call(self, **kws: Any) -> DAny:
+    def call(self, **kws: Any) -> DTFD:
         """Call the transform."""
         return kws
 
@@ -95,7 +96,7 @@ class Compose(TFDABase):
         self.transforms = chain(self.transforms, (transform,))
         return self
 
-    def call(self, **kws: Any) -> DAny:
+    def call(self, **kws: Any) -> DTFD:
         """Call the transforms."""
         for transform in self.transforms:
             kws = transform(**kws)
@@ -113,10 +114,20 @@ if __name__ == "__main__":
         For test only
         """
 
-        def call(self, **kws: int) -> dict[str, int]:
+        @staticmethod
+        @tf.function
+        def add1(x: TFD) -> TFD:
+            """Add 1."""
+            return x + 1
+
+        def call(self, **kws: TFD) -> DTFD:
             """Call the add 1 transform."""
             for k, v in kws.items():
-                kws[k] = v + 1
+                kws[k] = v.map(self.add1)
             return kws
 
-    assert Compose([_Add1Transform(), _Add1Transform()])(x=1) == {"x": 3}
+    assert list(
+        Compose([_Add1Transform(), _Add1Transform()])(
+            x=tf.data.Dataset.range(3)
+        )["x"].as_numpy_iterator()
+    ) == list(tf.data.Dataset.range(2, 5).as_numpy_iterator())

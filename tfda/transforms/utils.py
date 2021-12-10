@@ -37,8 +37,10 @@ Utils transforms
 # Standard Library
 from dataclasses import dataclass
 
+import tensorflow as tf
+
 # Others
-from tfda.base import Compose, DAny, TFDABase
+from tfda.base import DTFD, TFD, Compose, TFDABase
 
 if __name__ == "__main__":
 
@@ -48,10 +50,20 @@ if __name__ == "__main__":
         For test only
         """
 
-        def call(self, **kws: int) -> dict[str, int]:
+        @staticmethod
+        @tf.function
+        def add1(x: TFD) -> TFD:
+            """Add 1."""
+            return x + 1
+
+        def call(self, **kws: TFD) -> DTFD:
             """Call the add 1 transform."""
             for k, v in kws.items():
-                kws[k] = v + 1
+                kws[k] = v.map(self.add1)
             return kws
 
-    assert Compose([_Add1Transform(), _Add1Transform()])(x=1) == {"x": 3}
+    assert list(
+        Compose([_Add1Transform(), _Add1Transform()])(
+            x=tf.data.Dataset.range(3)
+        )["x"].as_numpy_iterator()
+    ) == list(tf.data.Dataset.range(2, 5).as_numpy_iterator())
