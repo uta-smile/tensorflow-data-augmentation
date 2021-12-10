@@ -37,10 +37,9 @@ Utils transforms
 # Standard Library
 from dataclasses import dataclass
 
-import tensorflow as tf
-
-# Others
 from tfda.base import DTFD, TFD, Compose, TFDABase
+
+import tensorflow as tf
 
 if __name__ == "__main__":
 
