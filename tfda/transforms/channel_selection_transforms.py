@@ -63,6 +63,9 @@ class DataChannelSelectionTransform(TFDABase):
         )
         return data_dict
 
+    def __hash__(self) -> int:
+        return 1
+
 
 @dataclass
 class SegChannelSelectionTransform(TFDABase):
@@ -77,6 +80,9 @@ class SegChannelSelectionTransform(TFDABase):
     channels: list[int]
     label_key: str = "seg"
     keep_discarded: bool = False
+
+    def __hash__(self) -> int:
+        return 2
 
     def call(self, **data_dict: TFD) -> DTFD:
         """Call the transform."""

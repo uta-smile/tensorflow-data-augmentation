@@ -40,6 +40,7 @@ from __future__ import annotations
 import abc
 from dataclasses import dataclass
 from itertools import chain
+from functools import wraps
 
 import tensorflow as tf
 
@@ -60,18 +61,20 @@ class TFDABase:
         """Call the base transform."""
         raise NotImplementedError("Abstract, so implement")
 
+    @tf.function
     def __call__(self, **kws: Any) -> DTFD:
         """Call call function."""
         return self.call(**kws)
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class RndTransform(TFDABase):
     """Random transform."""
 
     transform: TFDABase
     prob: float = 0.5
 
+    @tf.function
     def call(self, **kws: Any) -> DTFD:
         """Call the Rnd transform."""
         return tf.random.uniform() < self.prob and self.transform(**kws) or kws
@@ -80,6 +83,7 @@ class RndTransform(TFDABase):
 class IDTransform(TFDABase):
     """Identity transform."""
 
+    @tf.function
     def call(self, **kws: Any) -> DTFD:
         """Call the transform."""
         return kws
@@ -102,6 +106,9 @@ class Compose(TFDABase):
             kws = transform(**kws)
         return kws
 
+    def __hash__(self):
+        return 0
+
     def __repr__(self) -> str:
         return f"{type(self).__name__} ( {repr(self.transforms)} )"
 
@@ -120,14 +127,24 @@ if __name__ == "__main__":
             """Add 1."""
             return x + 1
 
+        @tf.function
         def call(self, **kws: TFD) -> DTFD:
             """Call the add 1 transform."""
             for k, v in kws.items():
                 kws[k] = v.map(self.add1)
             return kws
 
-    assert list(
-        Compose([_Add1Transform(), _Add1Transform()])(
-            x=tf.data.Dataset.range(3)
-        )["x"].as_numpy_iterator()
-    ) == list(tf.data.Dataset.range(2, 5).as_numpy_iterator())
+    with tf.device("/CPU:0"):
+        tf.print(
+            list(
+                _Add1Transform()(x=tf.data.Dataset.range(3))[
+                    "x"
+                ].as_numpy_iterator()
+            )
+        )
+
+        assert list(
+            Compose([_Add1Transform(), _Add1Transform()])(
+                x=tf.data.Dataset.range(3)
+            )["x"].as_numpy_iterator()
+        ) == list(tf.data.Dataset.range(2, 5).as_numpy_iterator())

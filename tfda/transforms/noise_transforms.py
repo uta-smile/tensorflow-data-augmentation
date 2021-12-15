@@ -46,7 +46,7 @@ from tfda.base import DTFD, TFD, TFDABase
 from tfda.utils import to_tf_bool, to_tf_float
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class GaussianNoiseTransform(TFDABase):
     """Adds additive Gaussian Noise.
 
@@ -68,7 +68,7 @@ class GaussianNoiseTransform(TFDABase):
     per_channel: bool = False
     data_key: str = "data"
 
-    def call(self, **data_dict):
+    def call(self, **data_dict: TFD) -> DTFD:
         """Call the transform."""
         data_dict[self.data_key] = data_dict[self.data_key].map(
             lambda x_: tf.map_fn(
@@ -83,7 +83,7 @@ class GaussianNoiseTransform(TFDABase):
                     lambda: x,
                 ),
                 x_,
-            )
+            ),
         )
         return data_dict
 

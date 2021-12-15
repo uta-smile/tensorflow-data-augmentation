@@ -39,21 +39,22 @@ import tensorflow as tf
 
 # Types
 from typing import Any
+import math as m
 
-TFT = tf.Tensor
-
-
+TFf0 = tf.cast(0, tf.float32)
 TFf1 = tf.cast(1, tf.float32)
 TFbF = tf.cast(False, tf.bool)
+TFbT = tf.cast(True, tf.bool)
+pi = tf.constant(m.pi)
 
 
 @tf.function
-def to_tf_bool(x: Any) -> TFT:
+def to_tf_bool(x: Any) -> tf.Tensor:
     """Convert python bool to tf bool."""
     return tf.cast(x, tf.bool)
 
 
 @tf.function
-def to_tf_float(x: Any) -> TFT:
+def to_tf_float(x: Any) -> tf.Tensor:
     """Convert python bool to tf float32."""
     return tf.cast(x, tf.float32)
