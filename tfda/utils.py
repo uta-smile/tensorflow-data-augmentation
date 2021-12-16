@@ -43,6 +43,7 @@ import math as m
 
 TFf0 = tf.cast(0, tf.float32)
 TFf1 = tf.cast(1, tf.float32)
+TFi1 = tf.cast(1, tf.int64)
 TFbF = tf.cast(False, tf.bool)
 TFbT = tf.cast(True, tf.bool)
 pi = tf.constant(m.pi)
@@ -58,3 +59,9 @@ def to_tf_bool(x: Any) -> tf.Tensor:
 def to_tf_float(x: Any) -> tf.Tensor:
     """Convert python bool to tf float32."""
     return tf.cast(x, tf.float32)
+
+
+@tf.function
+def to_tf_int(x: Any) -> tf.Tensor:
+    """Convert python bool to tf int64."""
+    return tf.cast(x, tf.int64)

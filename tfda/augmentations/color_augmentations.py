@@ -36,6 +36,8 @@ license  : GPL-3.0+
 Color Augmentation
 """
 import tensorflow as tf
+
+# Others
 from tfda.utils import TFbT, TFf1
 
 
@@ -50,8 +52,8 @@ def augment_contrast_help(
         minm = tf.math.reduce_min(x)
         maxm = tf.math.reduce_max(x)
 
-        nx = tf.cond(nx < minm, lambda: minm, lambda: x)
-        nx = tf.cond(nx > maxm, lambda: maxm, lambda: x)
+        nx = tf.where(nx < minm, minm, nx)
+        nx = tf.where(nx > maxm, maxm, nx)
     return nx
 
 
@@ -175,6 +177,6 @@ if __name__ == "__main__":
 
     with tf.device("/CPU:0"):
         # https://github.com/tensorflow/tensorflow/issues/49202
-        print(augment_contrast(data_sample))
-        print(augment_brightness_additive(data_sample, mu, sigma))
-        print(augment_brightness_multiplicative(data_sample))
+        tf.print(augment_contrast(data_sample).shape)
+        tf.print(augment_brightness_additive(data_sample, mu, sigma).shape)
+        tf.print(augment_brightness_multiplicative(data_sample).shape)

@@ -38,73 +38,96 @@ from __future__ import annotations
 
 # Standard Library
 import abc
-from dataclasses import dataclass
 from itertools import chain
-from functools import wraps
+from tfda.utils import to_tf_float, to_tf_bool
 
 import tensorflow as tf
 
 # Types
-from typing import Any, Sequence, TypeVar, Union
+from typing import Any, Dict, Iterable, Sequence, TypeVar, Union
 
-TFD = tf.data.Dataset
-DTFD = dict[str, tf.data.Dataset]
+TFT = tf.Tensor
+DTFT = Dict[str, tf.Tensor]
 T = TypeVar("T")
-Seqs = Union[Sequence[T], chain[T]]
+Seqs = Union[Sequence[T], Iterable[T]]
+
+
+tf.debugging.set_log_device_placement(True)
 
 
 class TFDABase:
     """Tensorflow data augmentation base."""
 
+    def __init__(self,
+                data_key: str = "data",
+                p_per_sample: float = 1,
+                p_per_channel: float = 1,
+                per_channel: bool = False,
+                contrast_range: tuple[float, float] = (0.75, 1.25),
+                multiplier_range: tuple[float, float] = (0.5, 2),
+                preserve_range: bool = True,
+                noise_variance: tuple[float, float] = (0, 0.1)) -> None:
+        self.p_per_sample = to_tf_float(p_per_sample)
+        self.p_per_channel = to_tf_float(p_per_channel)
+        self.per_channel = to_tf_bool(per_channel)
+        self.contrast_range = to_tf_float(contrast_range)
+        self.multiplier_range = to_tf_float(multiplier_range)
+        self.preserve_range = to_tf_bool(preserve_range)
+        self.noise_variance = to_tf_float(noise_variance)
+
+        self.data_key = data_key
+
     @abc.abstractmethod
-    def call(self, **kws: Any):
+    def call(self, **data_dict: TFT):
         """Call the base transform."""
         raise NotImplementedError("Abstract, so implement")
 
     @tf.function
-    def __call__(self, **kws: Any) -> DTFD:
-        """Call call function."""
-        return self.call(**kws)
+    def __call__(self, *args, **kws):
+        return self.call(*args, **kws)
 
 
-@dataclass(unsafe_hash=True)
 class RndTransform(TFDABase):
     """Random transform."""
 
-    transform: TFDABase
-    prob: float = 0.5
+    def __init__(self, transform: TFDABase,
+                prob: float = 0.5, **kws):
+        super().__init__(**kws)
+        self.transform = transform
+        self.prob = prob
 
     @tf.function
-    def call(self, **kws: Any) -> DTFD:
+    def call(self, **data_dict: TFT) -> DTFT:
         """Call the Rnd transform."""
-        return tf.random.uniform() < self.prob and self.transform(**kws) or kws
+        return tf.random.uniform() < self.prob and self.transform(**data_dict) or data_dict
 
 
 class IDTransform(TFDABase):
     """Identity transform."""
 
     @tf.function
-    def call(self, **kws: Any) -> DTFD:
+    def call(self, **data_dict: TFT) -> DTFT:
         """Call the transform."""
-        return kws
+        return data_dict
 
 
-@dataclass
 class Compose(TFDABase):
     """Compose transforms."""
 
-    transforms: Seqs[TFDABase]
+    def __init__(self, transforms: Seqs[TFDABase], **kws) -> None:
+        super().__init__(**kws)
+        self.transforms = transforms
 
     def add(self, transform: TFDABase) -> Compose:
         """Add transform."""
         self.transforms = chain(self.transforms, (transform,))
         return self
 
-    def call(self, **kws: Any) -> DTFD:
+    def call(self, **data_dict: TFT) -> DTFT:
         """Call the transforms."""
         for transform in self.transforms:
-            kws = transform(**kws)
-        return kws
+            data_dict = transform(**data_dict)
+        return data_dict
 
     def __hash__(self):
         return 0
@@ -121,30 +144,24 @@ if __name__ == "__main__":
         For test only
         """
 
-        @staticmethod
         @tf.function
-        def add1(x: TFD) -> TFD:
+        def add1(self, x: TFT) -> TFT:
             """Add 1."""
             return x + 1
 
         @tf.function
-        def call(self, **kws: TFD) -> DTFD:
+        def call(self, **data_dict: TFT) -> DTFT:
             """Call the add 1 transform."""
-            for k, v in kws.items():
-                kws[k] = v.map(self.add1)
-            return kws
 
-    with tf.device("/CPU:0"):
-        tf.print(
-            list(
-                _Add1Transform()(x=tf.data.Dataset.range(3))[
-                    "x"
-                ].as_numpy_iterator()
-            )
+            for key, data in data_dict.items():
+                data_dict[key] = self.add1(data)
+
+            return data_dict
+
+    data_sample = next(
+        iter(
+            tf.data.Dataset.range(20, output_type=tf.float32).batch(5).batch(2)
         )
+    )
 
-        assert list(
-            Compose([_Add1Transform(), _Add1Transform()])(
-                x=tf.data.Dataset.range(3)
-            )["x"].as_numpy_iterator()
-        ) == list(tf.data.Dataset.range(2, 5).as_numpy_iterator())
+    tf.print(_Add1Transform()(x=data_sample))

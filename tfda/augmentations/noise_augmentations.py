@@ -43,7 +43,6 @@ from functools import partial
 import tensorflow as tf
 
 # Others
-from tfda.base import TFD
 from tfda.utils import TFbF, TFf1, to_tf_bool
 
 
