@@ -43,7 +43,7 @@ import tensorflow as tf
 
 # Others
 from tfda.base import DTFT, TFT, TFDABase
-from tfda.utils import to_tf_float, to_tf_int
+from tfda.utils import to_tf_bool, to_tf_float, to_tf_int
 
 
 @dataclass
@@ -96,9 +96,8 @@ class SegChannelSelectionTransform(TFDABase):
     def call(self, **data_dict: TFT) -> DTFT:
         """Call the transform."""
         seg = data_dict.get(self.label_key)
-        shape = seg.shape[2:]
 
-        if seg is None:
+        if to_tf_bool(seg is None):
             warn(
                 "You used SegChannelSelectionTransform but "
                 "there is no 'seg' key in your data_dict, returning "
@@ -108,6 +107,7 @@ class SegChannelSelectionTransform(TFDABase):
         else:
             # TODO: keep_discarded
             # if self.keep_discarded:
+            shape = seg.shape[2:]
             seg = tf.map_fn(
                 lambda i: seg[:, to_tf_int(i)],
                 self.channels,

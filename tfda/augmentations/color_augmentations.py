@@ -38,7 +38,7 @@ Color Augmentation
 import tensorflow as tf
 
 # Others
-from tfda.utils import TFbT, TFf1
+from tfda.utils import TFbT, TFf1, to_tf_bool
 
 
 @tf.function
@@ -79,7 +79,7 @@ def augment_contrast(
     p_per_channel: tf.Tensor = TFf1,
 ) -> tf.Tensor:
     """Augment contrast."""
-    if contrast_range is None:
+    if to_tf_bool(contrast_range is None):
         contrast_range = tf.cast([0.75, 1.25], tf.float32)
     # TODO: callable contrast_range
     if not per_channel:
@@ -150,7 +150,7 @@ def augment_brightness_multiplicative(
     per_channel: tf.Tensor = TFbT,
 ) -> tf.Tensor:
     """Augment brightness multiplicative."""
-    if multiplier_range is None:
+    if to_tf_bool(multiplier_range is None):
         multiplier_range = tf.cast([0.5, 2], tf.float32)
     multiplier = tf.random.uniform(
         (), multiplier_range[0], multiplier_range[1]

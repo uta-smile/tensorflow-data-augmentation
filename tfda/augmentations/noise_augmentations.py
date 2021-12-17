@@ -64,7 +64,7 @@ def augment_gaussian_noise(
     per_channel: tf.bool = TFbF,
 ) -> tf.Tensor:
     """Apply gaussian noise on tf Tensor."""
-    if noise_variance is None:
+    if to_tf_bool(noise_variance is None):
         noise_variance = tf.cast([0, 0.1], tf.float32)
 
     variance = tf.cond(
