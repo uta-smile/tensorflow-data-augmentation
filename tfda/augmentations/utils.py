@@ -40,7 +40,7 @@ import tensorflow as tf
 
 # tf.debugging.set_log_device_placement(True)
 from tfda.base import TFT
-from tfda.utils import to_tf_float, to_tf_int, TFbF, TFbT, TFf0
+from tfda.utils import to_tf_bool, to_tf_float, to_tf_int, TFbF, TFbT, TFf0
 
 
 @tf.function
@@ -55,6 +55,7 @@ def create_zero_centered_coordinate_mesh(shape: TFT) -> TFT:
 
     # TODO: change hardcode to others
     # How to use *tmp in tensorflow graph?
+    # tf.meshgrid(*tmp, indexing="ij")
     coords = tf.cast(
         tf.meshgrid(tmp[0], tmp[1], tmp[2], indexing="ij"), dtype=tf.float32
     )
@@ -67,9 +68,9 @@ def create_zero_centered_coordinate_mesh(shape: TFT) -> TFT:
     return coords
 
 
+
+
 # Gaussian filter related
-
-
 @tf.function
 def gaussian_kernel1d(sigma: TFT, radius: TFT) -> TFT:
     x = tf.range(-radius, radius + 1, dtype=tf.float32)
@@ -78,19 +79,40 @@ def gaussian_kernel1d(sigma: TFT, radius: TFT) -> TFT:
 
 
 @tf.function
-def gaussian_filter1d(input, sigma):
+def gaussian_filter1d(input: TFT, sigma: TFT, mode: TFT, cval: TFT = TFf0):
     lw = tf.cast(sigma * sigma + 0.5, tf.int64)
     weights = gaussian_kernel1d(sigma, lw)[::-1]
+
+    ws = weights.shape[0]
+    ins = tf.size(input)
+
+    # padding
+    # for the VALID, width = (pin_w - k_w + 1) / stride(1) = in_w
+    # padding size = pin_w - in_w = k_w - 1
+    # Left geq Right
+    pv = tf.cond(
+        to_tf_bool(mode == "reflect"),
+        lambda: input,
+        lambda: tf.zeros(ins) + cval,
+    )
+    lp = tf.concat([pv, pv[::-1]], axis=0)
+    rp = tf.concat([pv[::-1], pv], axis=0)
+    ll = (ws - 1 + 1) // 2
+    rl = (ws - 1) - ll
+
+    lpv = tf.tile(lp, [ll // 2 // ins + 1])[:ll][::-1]
+    lrv = tf.tile(rp, [rl // 2 // ins + 1])[:rl]
+    input = tf.concat([lpv, input, lrv], axis=0)
 
     input = tf.reshape(input, (1, -1, 1))
     kernel = tf.reshape(weights, (-1, 1, 1))
 
-    return tf.squeeze(tf.nn.conv1d(input, kernel, stride=1, padding="SAME"))
+    return tf.squeeze(tf.nn.conv1d(input, kernel, stride=1, padding="VALID"))
 
 
 @tf.function
 def gaussian_filter(
-    input: TFT, sigma: TFT, mode: str = "reflect", cavl: TFT = TFf0
+    input: TFT, sigma: TFT, mode: str = "reflect", cval: TFT = TFf0
 ) -> TFT:
     """Gaussian filter trans from scipy gaussian filter."""
 
@@ -125,7 +147,13 @@ def gaussian_filter(
                 lambda gfa, perm: tf.reshape(
                     tf.map_fn(
                         lambda xs: tf.map_fn(
-                            lambda x: gaussian_filter1d(x, sigma), xs
+                            lambda x: gaussian_filter1d(
+                                tf.reshape(x, (-1,)),
+                                sigma,
+                                tf.cast(mode, tf.string),
+                                cval,
+                            ),
+                            xs,
                         ),
                         tf.transpose(gfa, perm),
                     ),
@@ -147,8 +175,18 @@ if __name__ == "__main__":
 
     with tf.device("/CPU:0"):
         coords = create_zero_centered_coordinate_mesh(patch_size)
+
+        tf.print(elastic_deform_coordinates(coords, 50, 12).shape)
+        assert elastic_deform_coordinates(coords, 50, 12).shape == [
+            3,
+            40,
+            56,
+            40,
+        ]
+
         xs = tf.random.uniform(coords.shape[1:], 0, 1)
-        x = gaussian_filter(xs, 5)
-        x_ = sf.gaussian_filter(xs, 5, mode="constant")
-        tf.print(x[0][0], "\n", x.shape, x[0].shape)
+        tf.print(xs.shape)
+        x = gaussian_filter(tf.cast(xs.numpy(), tf.float32), 5, "reflect")
+        x_ = sf.gaussian_filter(xs, 5, mode="reflect")
+        tf.print("\n\n", x[0][0], "\n", x.shape, x[0].shape)
         tf.print("----\n", x_[0][0], "\n", x_.shape, x_[0].shape)
