@@ -68,6 +68,28 @@ def create_zero_centered_coordinate_mesh(shape: TFT) -> TFT:
     return coords
 
 
+@tf.function
+def elastic_deform_coordinates(coordinates, alpha, sigma):
+    n_dim = coordinates.shape[0]
+    # offsets = []
+    # for _ in range(n_dim):
+    #     offsets.append(
+    #         gaussian_filter((np.random.random(coordinates.shape[1:]) * 2 - 1), sigma, mode="constant", cval=0) * alpha)
+    # offsets = np.array(offsets)
+    # indices = offsets + coordinates
+    # return indices
+    return (
+        tf.map_fn(
+            lambda _: gaussian_filter(
+                (tf.random.uniform(coordinates.shape[1:]) * 2 - 1),
+                sigma,
+                mode="constant",
+            )
+            * alpha,
+            tf.range(n_dim, dtype=tf.float32),
+        )
+        + coordinates
+    )
 
 
 # Gaussian filter related
