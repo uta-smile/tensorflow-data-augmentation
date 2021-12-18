@@ -7,7 +7,6 @@ authors = [
 ]
 dependencies = []
 requires-python = ""
-dynamic = ["classifiers"]
 license = {text = "MIT"}
 
 [project.urls]
