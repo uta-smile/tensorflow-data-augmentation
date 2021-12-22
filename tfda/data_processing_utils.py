@@ -1,7 +1,7 @@
 #@author Wenliang Zhong
 #@email wenliang.zhong@uta.edu
 #@create date 2021-12-14 18:42:00
-#@modify date 2021-12-21 19:50:00
+#@modify date 2021-12-22 16:00:00
 #@desc use for data loader and some processing
 
 import tensorflow as tf
@@ -655,7 +655,7 @@ def augment_spatial(data, seg, patch_size, patch_center_dist_from_border=30,
                     do_elastic_deform=True, alpha=(0., 1000.), sigma=(10., 13.),
                     do_rotation=True, angle_x=(0, 2 * tf.constant(math.pi)), angle_y=(0, 2 * tf.constant(math.pi)), angle_z=(0, 2 * tf.constant(math.pi)),
                     do_scale=True, scale=(0.75, 1.25), border_mode_data='nearest', border_cval_data=0, order_data=3,
-                    border_mode_seg='constant', border_cval_seg=0, order_seg=0, random_crop=True, p_el_per_sample=1.,
+                    border_mode_seg='constant', border_cval_seg=0, order_seg=3, random_crop=True, p_el_per_sample=1.,
                     p_scale_per_sample=1., p_rot_per_sample=1, independent_scale_for_each_axis=False,
                     p_rot_per_axis: float = 1., p_independent_scale_per_axis: int = 1):
 
@@ -684,15 +684,20 @@ def augment_spatial(data, seg, patch_size, patch_center_dist_from_border=30,
             def body_fn_data(channel_id, data_sample):
                 data_channel = interpolate_img(data[sample_id, channel_id], coords, order_data, border_mode_data, border_cval_data)
                 data_sample = update_tf_channel(data_sample, channel_id, data_channel)
-                data_channel = data_channel + 1
+                channel_id = channel_id + 1
                 return channel_id, data_sample
             _, data_sample = tf.while_loop(cond_to_loop_data, body_fn_data, [channel_id, data_sample])
             data_result = update_tf_channel(data_result, sample_id, data_sample)
             if seg is not None:
                 seg_sample = tf.zeros(tf.shape(seg_result)[1:])
-                for channel_id in range(tf.shape(seg)[1]):
+                channel_id = tf.constant(0)
+                cond_to_loop_seg = lambda channel_id, seg_sample: tf.less(channel_id, tf.shape(seg)[1])
+                def body_fn_seg(channel_id, seg_sample):
                     seg_channel = interpolate_img(seg[sample_id, channel_id], coords, order_seg, border_mode_seg, border_cval_seg, is_seg=True)
                     seg_sample = update_tf_channel(seg_sample, channel_id, seg_channel)
+                    channel_id = channel_id + 1
+                    return channel_id, seg_sample
+                _, seg_sample = tf.while_loop(cond_to_loop_seg, body_fn_seg, [channel_id, seg_sample])
                 seg_result = update_tf_channel(seg_result, sample_id, seg_sample)
         else:
             if seg is None:
@@ -729,11 +734,12 @@ def augment_spatial(data, seg, patch_size, patch_center_dist_from_border=30,
 
 def interpolate_img(img, coords, order=3, mode='nearest', cval=0.0, is_seg=False):
     if is_seg and order != 0:
-        unique_labels, _ = tf.unique(img)
+        # assert img is None, f'{img}'
+        unique_labels, _ = tf.unique(tf.reshape(img, (1, -1))[0])
         result = tf.zeros(tf.shape(coords)[1:], dtype=tf.float32)
         cond_to_loop = lambda img, i, coords, result, order: tf.less(i, tf.shape(unique_labels)[0])
         def body_fn(img, i, coords, result, order):
-            img, _, coords, result, order = map_coordinates_seg(img, unique_labels[i], coords, result, order)
+            img, _, coords, result, order = map_coordinates_seg(img, unique_labels[i], coords, result, 3)  # here I force the order = 3
             i = i + 1
             return img, i, coords, result, order
         i = tf.constant(0)
@@ -744,8 +750,9 @@ def interpolate_img(img, coords, order=3, mode='nearest', cval=0.0, is_seg=False
 
 def map_coordinates_seg(seg, cl, coords, result, order):
     seg = tf.cast(tf.equal(seg, cl), dtype=tf.float32)
-    new_seg = tf.cond(tf.equal(tf.rank(seg), tf.constant(3)), lambda: map_coordinates_3d(seg, coords, order), lambda: map_coordinates_2d(seg, coords, order))
-    indices = tf.where(tf.less_equal(tf.constant(0.5), new_seg))
+    # order = tf.cast(order, tf.int32)
+    new_seg = tf.cond(tf.equal(tf.rank(seg), tf.constant(3)), lambda: map_chunk_coordinates_3d(seg, coords, order), lambda: map_chunk_coordinates_3d(seg, coords, order))
+    indices = tf.where(tf.greater_equal(new_seg, tf.constant(0.5)))
     result = tf.tensor_scatter_nd_update(result, indices, tf.ones(tf.shape(indices)[0])*cl)
     return seg, cl, coords, result, order
 
@@ -758,7 +765,7 @@ def map_coordinates_seg_2d(seg, coords, order=3):
 
 def map_coordinates_img(img, coords, order=3):
     # return tf.cond(tf.equal(tf.rank(img), tf.constant(3)), lambda: map_coordinates_3d(img, coords, order), lambda: map_coordinates_2d(img, coords, order))
-    return tf.cond(tf.equal(tf.rank(img), tf.constant(3)), lambda: map_coordinates_3d(img, coords, order), lambda: map_coordinates_3d(img, coords, order))
+    return tf.cond(tf.equal(tf.rank(img), tf.constant(3)), lambda: map_chunk_coordinates_3d(img, coords, order), lambda: map_chunk_coordinates_3d(img, coords, order))
 
 def map_coordinates_3d(img, coords, order=3):
     new_coords = tf.concat([tf.reshape(coords[0], (-1, 1)), tf.reshape(coords[1], (-1, 1)), tf.reshape(coords[2], (-1, 1))], axis=1)
@@ -775,8 +782,181 @@ def map_coordinates_3d(img, coords, order=3):
     result = tf.reshape(result, tf.shape(coords)[1:])
     return result
 
+def map_chunk_coordinates_3d_tmp(img, coords, order=3, chunk_size=4):
+    chunk_shape = tf.shape(coords)[1:] // chunk_size
+    chunk_shape = tf.concat([[tf.shape(coords)[0]], chunk_shape], axis=0)
+    chunk_shape = tf.cast(chunk_shape, tf.int32)
+    chunk_index = tf.zeros(tf.rank(coords), dtype=tf.int32)
+    total_result = tf.zeros(tf.shape(coords)[1:])
+    for k in range(chunk_size):
+        cond_to_loop_j = lambda j, chunk_index, chunk_shape, total_result: tf.less(j, tf.constant(chunk_size))
+        def body_fn_j(j, chunk_index, chunk_shape, total_result):
+            cond_to_loop_i = lambda i, chunk_index, chunk_shape, total_result: tf.less(i, chunk_size)
+            def body_fn_i(i, chunk_index, chunk_shape, total_result):
+                chunk_coords = tf.slice(coords, chunk_index, chunk_shape)
+                chunk_coords_0, chunk_coords_1, chunk_coords_2 = tf.reshape(chunk_coords[0], (-1, 1)), tf.reshape(chunk_coords[1], (-1, 1)),tf.reshape(chunk_coords[2], (-1, 1))
+                chunk_coords = tf.concat([chunk_coords_0, chunk_coords_1, chunk_coords_2], axis=1)
+                chunk_min = tf.math.reduce_min(chunk_coords, axis=0)
+                chunk_max = tf.math.reduce_max(chunk_coords, axis=0)
+                chunk_min, chunk_max = tf.cast(tf.maximum(tf.constant(0.), tf.floor(chunk_min)), tf.int32), tf.cast(tf.round(chunk_max), tf.int32)
+                slice_size = chunk_max - chunk_min + 1
+                slice_img = tf.slice(img, chunk_min, slice_size)
+                reshape_img = tf.reshape(slice_img, (1, -1, 1))
+                slice_x, slice_y, slice_z = tf.meshgrid(tf.range(chunk_min[0], chunk_max[0]+1), tf.range(chunk_min[1], chunk_max[1]+1), tf.range(chunk_min[2], chunk_max[2]+1), indexing='ij')
+                slice_x = tf.reshape(slice_x, (-1, 1))
+                slice_y = tf.reshape(slice_y, (-1, 1))
+                slice_z = tf.reshape(slice_z, (-1, 1))
+                slice_coords = tf.concat([slice_x, slice_y, slice_z], axis=1)
+                slice_coords = tf.cast(slice_coords[tf.newaxis,], tf.float32)
+                chunk_coords = tf.cast(chunk_coords[tf.newaxis,], tf.float32)
+                result = tfa.image.interpolate_spline(slice_coords, reshape_img, chunk_coords, order=order)
+                result = result[:,:,0]
+                x, y, z = tf.meshgrid(tf.range(chunk_index[1], chunk_index[1]+chunk_shape[1]), tf.range(chunk_index[2], chunk_index[2]+chunk_shape[2]), tf.range(chunk_index[3], chunk_index[3]+chunk_shape[3]), indexing='ij')
+                x, y, z = tf.reshape(x, (-1, 1)), tf.reshape(y, (-1, 1)), tf.reshape(z, (-1, 1))
+                xyz = tf.concat([x, y, z], axis=1)
+                map_coords = xyz[tf.newaxis,]
+                chunk_index = tf.tensor_scatter_nd_add(chunk_index, [[1]], [chunk_shape[1]])
+                # chunk_index = tf.tensor_scatter_nd_update(chunk_index, [[0]], [0])
+                if i == chunk_size - 2:
+                    chunk_shape = tf.tensor_scatter_nd_update(chunk_shape, [[1]], [tf.shape(coords)[1] - chunk_index[1]])
+                total_result = tf.tensor_scatter_nd_add(total_result, map_coords, result)
+                i = i + 1
+                return i, chunk_index, chunk_shape, total_result
+            i = tf.constant(0)
+            _, chunk_index, chunk_shape, total_result = tf.while_loop(cond_to_loop_i, body_fn_i, [i, chunk_index, chunk_shape, total_result])
+            chunk_index = tf.tensor_scatter_nd_add(chunk_index, [[2]], [chunk_shape[2]])
+            chunk_index = tf.tensor_scatter_nd_update(chunk_index, [[1]], [0])
+            chunk_shape = tf.tensor_scatter_nd_update(chunk_shape, [[1]], [tf.shape(coords)[1] // chunk_size])
+            if j == chunk_size - 2:
+                chunk_shape = tf.tensor_scatter_nd_update(chunk_shape, [[2]], [tf.shape(coords)[2] - chunk_index[2]])
+            j = j + 1
+            return j, chunk_index, chunk_shape, total_result
+        j = tf.constant(0)
+        _, chunk_index, chunk_shape, total_result = tf.while_loop(cond_to_loop_j, body_fn_j, [j, chunk_index, chunk_shape, total_result])
+        chunk_index = tf.tensor_scatter_nd_add(chunk_index, [[3]], [chunk_shape[3]])
+        chunk_index = tf.tensor_scatter_nd_update(chunk_index, [[2]], [0])
+        chunk_shape = tf.tensor_scatter_nd_update(chunk_shape, [[2]], [tf.shape(coords)[2] // chunk_size])
+        if k == chunk_size - 2:
+            chunk_shape = tf.tensor_scatter_nd_update(chunk_shape, [[3]], [tf.shape(coords)[3] - chunk_index[3]])
+    return total_result
+
+def map_chunk_coordinates_3d(img, coords, order=3, chunk_size=4):
+    chunk_shape = tf.shape(coords)[1:] // chunk_size
+    chunk_shape = tf.concat([[tf.shape(coords)[0]], chunk_shape], axis=0)
+    chunk_shape = tf.cast(chunk_shape, tf.int32)
+    chunk_index = tf.zeros(tf.rank(coords), dtype=tf.int32)
+    total_result = tf.zeros(tf.shape(coords)[1:])
+    cond_to_loop_k = lambda k, chunk_index, chunk_shape, total_result: tf.less(k, tf.constant(chunk_size))
+    def body_fn_k(k, chunk_index, chunk_shape, total_result):
+        cond_to_loop_j = lambda j, chunk_index, chunk_shape, total_result: tf.less(j, tf.constant(chunk_size))
+        def body_fn_j(j, chunk_index, chunk_shape, total_result):
+            cond_to_loop_i = lambda i, chunk_index, chunk_shape, total_result: tf.less(i, chunk_size)
+            def body_fn_i(i, chunk_index, chunk_shape, total_result):
+                chunk_coords = tf.slice(coords, chunk_index, chunk_shape)
+                chunk_coords_0, chunk_coords_1, chunk_coords_2 = tf.reshape(chunk_coords[0], (-1, 1)), tf.reshape(chunk_coords[1], (-1, 1)),tf.reshape(chunk_coords[2], (-1, 1))
+                chunk_coords = tf.concat([chunk_coords_0, chunk_coords_1, chunk_coords_2], axis=1)
+                chunk_min = tf.math.reduce_min(chunk_coords, axis=0)
+                chunk_max = tf.math.reduce_max(chunk_coords, axis=0)
+                chunk_min, chunk_max = tf.cast(tf.maximum(tf.constant(0.), tf.floor(chunk_min)), tf.int32), tf.cast(tf.round(chunk_max), tf.int32)
+                slice_size = chunk_max - chunk_min + 1
+                slice_img = tf.slice(img, chunk_min, slice_size)
+                reshape_img = tf.reshape(slice_img, (1, -1, 1))
+                slice_x, slice_y, slice_z = tf.meshgrid(tf.range(chunk_min[0], chunk_max[0]+1), tf.range(chunk_min[1], chunk_max[1]+1), tf.range(chunk_min[2], chunk_max[2]+1), indexing='ij')
+                slice_x = tf.reshape(slice_x, (-1, 1))
+                slice_y = tf.reshape(slice_y, (-1, 1))
+                slice_z = tf.reshape(slice_z, (-1, 1))
+                slice_coords = tf.concat([slice_x, slice_y, slice_z], axis=1)
+                slice_coords = tf.cast(slice_coords[tf.newaxis,], tf.float32)
+                chunk_coords = tf.cast(chunk_coords[tf.newaxis,], tf.float32)
+                result = tfa.image.interpolate_spline(slice_coords, reshape_img, chunk_coords, order=order)
+                result = result[:,:,0]
+                x, y, z = tf.meshgrid(tf.range(chunk_index[1], chunk_index[1]+chunk_shape[1]), tf.range(chunk_index[2], chunk_index[2]+chunk_shape[2]), tf.range(chunk_index[3], chunk_index[3]+chunk_shape[3]), indexing='ij')
+                x, y, z = tf.reshape(x, (-1, 1)), tf.reshape(y, (-1, 1)), tf.reshape(z, (-1, 1))
+                xyz = tf.concat([x, y, z], axis=1)
+                map_coords = xyz[tf.newaxis,]
+                chunk_index = tf.tensor_scatter_nd_add(chunk_index, [[1]], [chunk_shape[1]])
+                # chunk_index = tf.tensor_scatter_nd_update(chunk_index, [[0]], [0])
+                if i == chunk_size - 2:
+                    chunk_shape = tf.tensor_scatter_nd_update(chunk_shape, [[1]], [tf.shape(coords)[1] - chunk_index[1]])
+                total_result = tf.tensor_scatter_nd_add(total_result, map_coords, result)
+                i = i + 1
+                return i, chunk_index, chunk_shape, total_result
+            i = tf.constant(0)
+            _, chunk_index, chunk_shape, total_result = tf.while_loop(cond_to_loop_i, body_fn_i, [i, chunk_index, chunk_shape, total_result])
+            chunk_index = tf.tensor_scatter_nd_add(chunk_index, [[2]], [chunk_shape[2]])
+            chunk_index = tf.tensor_scatter_nd_update(chunk_index, [[1]], [0])
+            chunk_shape = tf.tensor_scatter_nd_update(chunk_shape, [[1]], [tf.shape(coords)[1] // chunk_size])
+            if j == chunk_size - 2:
+                chunk_shape = tf.tensor_scatter_nd_update(chunk_shape, [[2]], [tf.shape(coords)[2] - chunk_index[2]])
+            j = j + 1
+            return j, chunk_index, chunk_shape, total_result
+        j = tf.constant(0)
+        _, chunk_index, chunk_shape, total_result = tf.while_loop(cond_to_loop_j, body_fn_j, [j, chunk_index, chunk_shape, total_result])
+        chunk_index = tf.tensor_scatter_nd_add(chunk_index, [[3]], [chunk_shape[3]])
+        chunk_index = tf.tensor_scatter_nd_update(chunk_index, [[2]], [0])
+        chunk_shape = tf.tensor_scatter_nd_update(chunk_shape, [[2]], [tf.shape(coords)[2] // chunk_size])
+        if k == chunk_size - 2:
+            chunk_shape = tf.tensor_scatter_nd_update(chunk_shape, [[3]], [tf.shape(coords)[3] - chunk_index[3]])
+        k = k + 1
+        return k, chunk_index, chunk_shape, total_result
+    k = tf.constant(0)
+    _, chunk_index, chunk_shape, total_result = tf.while_loop(cond_to_loop_k, body_fn_k, [k, chunk_index, chunk_shape, total_result])
+    return total_result
+
+def map_chunk_coordinates_2d(img, coords, order=3, chunk_size=4):
+    chunk_shape = tf.shape(coords)[1:] // chunk_size
+    chunk_shape = tf.concat([[tf.shape(coords)[0]], chunk_shape], axis=0)
+    chunk_shape = tf.cast(chunk_shape, tf.int32)
+    chunk_index = tf.zeros(tf.rank(coords), dtype=tf.int32)
+    total_result = tf.zeros(tf.shape(coords)[1:])
+    cond_to_loop_j = lambda j, chunk_index, chunk_shape, total_result: tf.less(j, tf.constant(chunk_size))
+    def body_fn_j(j, chunk_index, chunk_shape, total_result):
+        cond_to_loop_i = lambda i, chunk_index, chunk_shape, total_result: tf.less(i, chunk_size)
+        def body_fn_i(i, chunk_index, chunk_shape, total_result):
+            chunk_coords = tf.slice(coords, chunk_index, chunk_shape)
+            chunk_coords_0, chunk_coords_1, chunk_coords_2 = tf.reshape(chunk_coords[0], (-1, 1)), tf.reshape(chunk_coords[1], (-1, 1)),tf.reshape(chunk_coords[2], (-1, 1))
+            chunk_coords = tf.concat([chunk_coords_0, chunk_coords_1, chunk_coords_2], axis=1)
+            chunk_min = tf.math.reduce_min(chunk_coords, axis=0)
+            chunk_max = tf.math.reduce_max(chunk_coords, axis=0)
+            chunk_min, chunk_max = tf.cast(tf.maximum(tf.constant(0.), tf.floor(chunk_min)), tf.int32), tf.cast(tf.round(chunk_max), tf.int32)
+            slice_size = chunk_max - chunk_min + 1
+            slice_img = tf.slice(img, chunk_min, slice_size)
+            reshape_img = tf.reshape(slice_img, (1, -1, 1))
+            slice_x, slice_y, slice_z = tf.meshgrid(tf.range(chunk_min[0], chunk_max[0]+1), tf.range(chunk_min[1], chunk_max[1]+1), tf.range(chunk_min[2], chunk_max[2]+1), indexing='ij')
+            slice_x = tf.reshape(slice_x, (-1, 1))
+            slice_y = tf.reshape(slice_y, (-1, 1))
+            slice_z = tf.reshape(slice_z, (-1, 1))
+            slice_coords = tf.concat([slice_x, slice_y, slice_z], axis=1)
+            slice_coords = tf.cast(slice_coords[tf.newaxis,], tf.float32)
+            chunk_coords = tf.cast(chunk_coords[tf.newaxis,], tf.float32)
+            result = tfa.image.interpolate_spline(slice_coords, reshape_img, chunk_coords, order=order)
+            result = result[:,:,0]
+            x, y, z = tf.meshgrid(tf.range(chunk_index[1], chunk_index[1]+chunk_shape[1]), tf.range(chunk_index[2], chunk_index[2]+chunk_shape[2]), tf.range(chunk_index[3], chunk_index[3]+chunk_shape[3]), indexing='ij')
+            x, y, z = tf.reshape(x, (-1, 1)), tf.reshape(y, (-1, 1)), tf.reshape(z, (-1, 1))
+            xyz = tf.concat([x, y, z], axis=1)
+            map_coords = xyz[tf.newaxis,]
+            chunk_index = tf.tensor_scatter_nd_add(chunk_index, [[1]], [chunk_shape[1]])
+            # chunk_index = tf.tensor_scatter_nd_update(chunk_index, [[0]], [0])
+            if i == chunk_size - 2:
+                chunk_shape = tf.tensor_scatter_nd_update(chunk_shape, [[1]], [tf.shape(coords)[1] - chunk_index[1]])
+            total_result = tf.tensor_scatter_nd_add(total_result, map_coords, result)
+            i = i + 1
+            return i, chunk_index, chunk_shape, total_result
+        i = tf.constant(0)
+        _, chunk_index, chunk_shape, total_result = tf.while_loop(cond_to_loop_i, body_fn_i, [i, chunk_index, chunk_shape, total_result])
+        chunk_index = tf.tensor_scatter_nd_add(chunk_index, [[2]], [chunk_shape[2]])
+        chunk_index = tf.tensor_scatter_nd_update(chunk_index, [[1]], [0])
+        chunk_shape = tf.tensor_scatter_nd_update(chunk_shape, [[1]], [tf.shape(coords)[1] // chunk_size])
+        if j == chunk_size - 2:
+            chunk_shape = tf.tensor_scatter_nd_update(chunk_shape, [[2]], [tf.shape(coords)[2] - chunk_index[2]])
+        j = j + 1
+        return j, chunk_index, chunk_shape, total_result
+    j = tf.constant(0)
+    _, chunk_index, chunk_shape, total_result = tf.while_loop(cond_to_loop_j, body_fn_j, [j, chunk_index, chunk_shape, total_result])
+
+    return total_result
+
 def map_coordinates_2d(img, coords, order=3):
-    tf.assert_equal(tf.rank(img), tf.constant(2))
     new_coords = tf.concat([tf.reshape(coords[0], (-1, 1)), tf.reshape(coords[1], (-1, 1))], axis=1)
     new_coords = new_coords[tf.newaxis,]
     new_coords = tf.cast(new_coords, tf.float32)
@@ -978,14 +1158,22 @@ def update_tf_channel(data, idx, update_value):
 
 
 
-
-if __name__ == '__main__':
+def main():
+    # patch_size = [10, 20, 10]
     patch_size = [40, 56, 40]
     patch_center_dist_from_border = [30, 30, 30]
     data = tf.ones([1, 1, 70, 83, 64])
     seg = tf.ones([1, 1, 70, 83, 64])
+    # data = tf.ones([1, 1, 10, 20, 10])
+    # seg = tf.ones([1, 1, 10, 20, 10])
     data, seg = augment_spatial(data, seg, patch_size, patch_center_dist_from_border, random_crop=False)
     print(data)
     print(seg)
     print(data.shape)
     print(seg.shape)
+
+
+if __name__ == '__main__':
+    mirrored_strategy = tf.distribute.MirroredStrategy()
+    with mirrored_strategy.scope():
+        main()
