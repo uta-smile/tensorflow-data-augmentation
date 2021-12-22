@@ -60,24 +60,15 @@ def create_zero_centered_coordinate_mesh(shape: TFT) -> TFT:
         tf.meshgrid(tmp[0], tmp[1], tmp[2], indexing="ij"), dtype=tf.float32
     )
 
-    coords = tf.map_fn(
+    return tf.map_fn(
         lambda i: coords[to_tf_int(i)]
         - ((to_tf_float(shape) - 1) / 2)[to_tf_int(i)],
         tf.range(coords.shape[0], dtype=tf.float32),
     )
-    return coords
 
 
 @tf.function
 def elastic_deform_coordinates(coordinates, alpha, sigma):
-    n_dim = coordinates.shape[0]
-    # offsets = []
-    # for _ in range(n_dim):
-    #     offsets.append(
-    #         gaussian_filter((np.random.random(coordinates.shape[1:]) * 2 - 1), sigma, mode="constant", cval=0) * alpha)
-    # offsets = np.array(offsets)
-    # indices = offsets + coordinates
-    # return indices
     return (
         tf.map_fn(
             lambda _: gaussian_filter(
@@ -86,9 +77,104 @@ def elastic_deform_coordinates(coordinates, alpha, sigma):
                 mode="constant",
             )
             * alpha,
-            tf.range(n_dim, dtype=tf.float32),
+            tf.range(coordinates.shape[0], dtype=tf.float32),
         )
         + coordinates
+    )
+
+
+# rotation relate
+@tf.function
+def create_matrix_rotation_x_3d(angle: TFT, matrix: TFT) -> TFT:
+    rotation_x = tf.cast(
+        [
+            [1, 0, 0],
+            [0, tf.cos(angle), -tf.sin(angle)],
+            [0, tf.sin(angle), tf.cos(angle)],
+        ],
+        tf.float32,
+    )
+    return matrix @ rotation_x
+
+
+@tf.function
+def create_matrix_rotation_y_3d(angle: TFT, matrix: TFT) -> TFT:
+    rotation_x = tf.cast(
+        [
+            [tf.cos(angle), 0, tf.sin(angle)],
+            [0, 1, 0],
+            [-tf.sin(angle), 0, tf.cos(angle)],
+        ],
+        tf.float32,
+    )
+    return matrix @ rotation_x
+
+
+@tf.function
+def create_matrix_rotation_z_3d(angle: TFT, matrix: TFT) -> TFT:
+    rotation_x = tf.cast(
+        [
+            [tf.cos(angle), -tf.sin(angle), 0],
+            [tf.sin(angle), tf.cos(angle), 0],
+            [0, 0, 1],
+        ],
+        tf.float32,
+    )
+    return matrix @ rotation_x
+
+
+@tf.function
+def create_matrix_rotation_2d(angle: TFT, matrix: TFT = None) -> TFT:
+    rotation = tf.cast(
+        [[tf.cos(angle), -tf.sin(angle)], [tf.sin(angle), tf.cos(angle)]],
+        tf.float32,
+    )
+
+    return tf.cond(
+        to_tf_bool(matrix is None), lambda: rotation, lambda: matrix @ rotation
+    )
+
+
+@tf.function
+def rotate_coords_3d(
+    coords: TFT, angle_x: TFT, angle_y: TFT, angle_z: TFT
+) -> TFT:
+    rot_matrix = tf.eye(coords.shape[0])
+
+    rot_matrix = create_matrix_rotation_x_3d(angle_x, rot_matrix)
+    rot_matrix = create_matrix_rotation_y_3d(angle_y, rot_matrix)
+    rot_matrix = create_matrix_rotation_z_3d(angle_z, rot_matrix)
+
+    return tf.reshape(
+        tf.transpose(
+            tf.transpose(tf.reshape(coords, (coords.shape[0], -1)))
+            @ rot_matrix
+        ),
+        coords.shape,
+    )
+
+
+@tf.function
+def rotate_coords_2d(coords: TFT, angle: TFT) -> TFT:
+    rot_matrix = create_matrix_rotation_2d(angle)
+    return tf.reshape(
+        tf.transpose(
+            tf.transpose(tf.reshape(coords, (coords.shape[0], -1)))
+            @ rot_matrix
+        ),
+        coords.shape,
+    )
+
+
+@tf.function
+def scale_coords(coords: TFT, scale: TFT) -> TFT:
+    return tf.cond(
+        tf.rank(scale) == 0,
+        lambda: coords * scale,
+        lambda: tf.map_fn(
+            lambda i: coords[to_tf_int(i)] * scale[to_tf_int(i)],
+            tf.range(tf.size(scale), dtype=tf.float32),
+        ),
     )
 
 
@@ -212,3 +298,6 @@ if __name__ == "__main__":
         x_ = sf.gaussian_filter(xs, 5, mode="reflect")
         tf.print("\n\n", x[0][0], "\n", x.shape, x[0].shape)
         tf.print("----\n", x_[0][0], "\n", x_.shape, x_[0].shape)
+
+        tf.print("----------")
+        tf.print(rotate_coords_3d(coords, 1.0, 1.0, 1.0).shape)
