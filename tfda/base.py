@@ -52,7 +52,7 @@ T = TypeVar("T")
 Seqs = Union[Sequence[T], Iterable[T]]
 
 
-tf.debugging.set_log_device_placement(True)
+# tf.debugging.set_log_device_placement(True)
 
 
 class TFDABase:

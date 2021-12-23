@@ -41,7 +41,7 @@ import tensorflow as tf
 # Types
 from typing import Optional
 
-tf.debugging.set_log_device_placement(True)
+# tf.debugging.set_log_device_placement(True)
 # Others
 from tfda.augmentations.utils import (
     create_zero_centered_coordinate_mesh,
