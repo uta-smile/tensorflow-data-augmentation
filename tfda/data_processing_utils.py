@@ -1521,14 +1521,14 @@ def map_chunk_coordinates_3d(img, coords, order=3, chunk_size=4):
                 chunk_max = tf.math.reduce_max(chunk_coords, axis=0)
                 chunk_min, chunk_max = tf.cast(
                     tf.maximum(tf.constant(0.0), tf.floor(chunk_min)), tf.int64
-                ), tf.cast(tf.round(chunk_max), tf.int64)
-                slice_size = chunk_max - chunk_min + 1
+                ), tf.cast(tf.minimum(tf.cast(tf.shape(img), dtype=tf.float32), tf.round(chunk_max)), tf.int64)
+                slice_size = chunk_max - chunk_min
                 slice_img = tf.slice(img, chunk_min, slice_size)
                 reshape_img = tf.reshape(slice_img, (1, -1, 1))
                 slice_x, slice_y, slice_z = tf.meshgrid(
-                    tf.range(chunk_min[0], chunk_max[0] + 1),
-                    tf.range(chunk_min[1], chunk_max[1] + 1),
-                    tf.range(chunk_min[2], chunk_max[2] + 1),
+                    tf.range(chunk_min[0], chunk_max[0]),
+                    tf.range(chunk_min[1], chunk_max[1]),
+                    tf.range(chunk_min[2], chunk_max[2]),
                     indexing="ij",
                 )
                 slice_x = tf.reshape(slice_x, (-1, 1))
@@ -1547,8 +1547,9 @@ def map_chunk_coordinates_3d(img, coords, order=3, chunk_size=4):
                     ],
                     tf.float32,
                 )
+                order = tf.constant(3, dtype=tf.int64)
                 result = tfa.image.interpolate_spline(
-                    slice_coords, reshape_img, chunk_coords, order=order
+                    slice_coords, reshape_img, chunk_coords, order=3
                 )
                 result = result[:, :, 0]
                 x, y, z = tf.meshgrid(

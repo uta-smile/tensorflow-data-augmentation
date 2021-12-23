@@ -161,13 +161,13 @@ if __name__ == '__main__':
         .batch(83)
         .batch(70)
         .batch(1)
-        .batch(2)
-        .batch(4)
+        .batch(1)
+        .batch(8)
     )
 
     di = iter(dataset)
-    data_sample = next(di)
-    seg_sample = next(di)
+    data_sample = tf.ones((1, 1, 70, 83, 64))
+    seg_sample = tf.ones((1, 1, 70, 83, 64))
 
 
     sa = SpatialTransforms(

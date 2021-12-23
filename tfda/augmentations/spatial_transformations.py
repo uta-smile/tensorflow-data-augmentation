@@ -353,8 +353,10 @@ if __name__ == "__main__":
     data = tf.ones([1, 1, 70, 83, 64])
     seg = tf.ones([1, 1, 70, 83, 64])
     patch_size = tf.cast([40, 56, 40], tf.int64)
+    mirrored_strategy = tf.distribute.MirroredStrategy()
 
-    with tf.device("/CPU:0"):
+    #with tf.device("/CPU:0"):
+    with mirrored_strategy.scope():
         augment_spatial(data, seg, patch_size, random_crop=TFbF)
         # augment_spatial(data, seg, patch_size)
         # augment_spatial(data, seg, patch_size)
