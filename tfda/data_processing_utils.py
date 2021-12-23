@@ -1593,11 +1593,11 @@ def map_chunk_coordinates_3d(img, coords, order=3, chunk_size=4):
             )
             chunk_index = tf.tensor_scatter_nd_update(chunk_index, [[1]], [0])
             chunk_shape = tf.tensor_scatter_nd_update(
-                chunk_shape, [[1]], [tf.shape(coords)[1] // chunk_size]
+                chunk_shape, [[1]], [tf.shape(coords, out_type=tf.int64)[1] // chunk_size]
             )
             if j == chunk_size - 2:
                 chunk_shape = tf.tensor_scatter_nd_update(
-                    chunk_shape, [[2]], [tf.shape(coords)[2] - chunk_index[2]]
+                    chunk_shape, [[2]], [tf.shape(coords, out_type=tf.int64)[2] - chunk_index[2]]
                 )
             j = j + 1
             return j, chunk_index, chunk_shape, total_result
