@@ -37,6 +37,19 @@ spatial transformations
 """
 
 import tensorflow as tf
+
+# Types
+from typing import Optional
+
+tf.debugging.set_log_device_placement(True)
+# Others
+from tfda.augmentations.utils import (
+    create_zero_centered_coordinate_mesh,
+    elastic_deform_coordinates,
+    rotate_coords_2d,
+    rotate_coords_3d,
+    scale_coords,
+)
 from tfda.base import TFT
 from tfda.utils import (
     TFbF,
@@ -44,37 +57,35 @@ from tfda.utils import (
     TFf0,
     TFf1,
     TFi1,
+    pi,
     to_tf_bool,
     to_tf_float,
-    pi,
 )
 
 
-
-def augment_spatial_helper(sample_id:TFT, patch_size: TFT) -> TFT:
+def augment_spatial_helper(sample_id: TFT, patch_size: TFT) -> TFT:
     pass
 
 
-
-
+@tf.function(experimental_follow_type_hints=True)
 def augment_spatial(
     data: TFT,
-    seg: TFT,
+    seg: Optional[TFT],
     patch_size: TFT,
     patch_center_dist_from_border: TFT = 30 * TFi1,
     do_elastic_deform: TFT = TFbT,
-    alpha: TFT = None,
-    sigma: TFT = None,
+    alpha: TFT = (0.0, 1000.0),
+    sigma: TFT = (10.0, 13.0),
     do_rotation: TFT = TFbT,
-    angle_x: TFT = None,
-    angle_y: TFT = None,
-    angle_z: TFT = None,
+    angle_x: TFT = (0, 2 * pi),
+    angle_y: TFT = (0, 2 * pi),
+    angle_z: TFT = (0, 2 * pi),
     do_scale: TFT = TFbT,
-    scale: TFT = None,
-    border_mode_data: TFT = None,
+    scale: TFT = (0.75, 1.25),
+    border_mode_data: TFT = "nearest",
     border_cval_data: TFT = TFf0,
     order_data: TFT = 3 * TFf1,
-    border_mode_seg: TFT = None,
+    border_mode_seg: TFT = "constant",
     border_cval_seg: TFT = TFf0,
     order_seg: TFT = TFf0,
     random_crop: TFT = TFbT,
@@ -85,81 +96,85 @@ def augment_spatial(
     p_rot_per_axis: TFT = TFf1,
     p_independent_scale_per_axis: TFT = TFf1,
 ) -> TFT:
-    # init
-    alpha = tf.cond(
-        to_tf_bool(alpha is None), lambda: to_tf_float((0.0, 1000.0)), alpha
-    )
-    sigma = tf.cond(
-        to_tf_bool(sigma is None), lambda: to_tf_float((10.0, 13.0)), sigma
-    )
-    angle_x = tf.cond(
-        to_tf_bool(angle_x is None), lambda: to_tf_float((0, 2 * pi)), angle_x
-    )
-    angle_y = tf.cond(
-        to_tf_bool(angle_y is None), lambda: to_tf_float((0, 2 * pi)), angle_y
-    )
-    angle_z = tf.cond(
-        to_tf_bool(angle_z is None), lambda: to_tf_float((0, 2 * pi)), angle_z
-    )
-    scale = tf.cond(
-        to_tf_bool(scale is None),
-        lambda: to_tf_float((0.75, 1.25)),
-        lambda: scale,
-    )
-    border_mode_data = tf.cond(
-        to_tf_bool(border_mode_data is None),
-        lambda: tf.cast("nearest", tf.string),
-        lambda: border_mode_data,
-    )
-    border_mode_seg = tf.cond(
-        to_tf_bool(border_mode_seg is None),
-        lambda: tf.cast("constant", tf.string),
-        lambda: border_mode_seg,
-    )
-
     # start here
-    dim = patch_size.shape[0]
+    dim = tf.shape(patch_size)[0]
 
-    seg_result = tf.cond(
-        to_tf_bool(seg is None),
-        lambda: None,
-        lambda: tf.cond(
-            dim == 2,
-            lambda: tf.zeros(
-                (seg.shape[0], seg.shape[1], patch_size[0], patch_size[1]),
-                tf.float32,
-            ),
-            lambda: tf.zeros(
-                (
-                    seg.shape[0],
-                    seg.shape[1],
-                    patch_size[0],
-                    patch_size[1],
-                    patch_size[2],
-                ),
-                tf.float32,
-            ),
-        ),
-    )
-
-    data_result = tf.cond(
-        dim == 2,
-        lambda: tf.zeros(
-            (data.shape[0], data.shape[1], patch_size[0], patch_size[1]),
-            tf.float32,
-        ),
-        lambda: tf.zeros(
-            (
-                data.shape[0],
-                data.shape[1],
-                patch_size[0],
-                patch_size[1],
-                patch_size[2],
-            ),
-            tf.float32,
-        ),
-    )
+    # don't do it now!
+    # seg_result, data_result
 
     # Never used
     # if not isinstance(patch_center_dist_from_border, (list, tuple, np.ndarray)):
     #     patch_center_dist_from_border = dim * [patch_center_dist_from_border]
+
+    for sample_id in tf.range(data.shape[0]):
+        coords = create_zero_centered_coordinate_mesh(patch_size)
+        # cshape = tf.concat([[coords.get_shape()[0]], patch_size], 0)
+        modified_coords = TFbF
+        if do_elastic_deform and tf.less(
+            tf.random.uniform(()), p_el_per_sample
+        ):
+            a = tf.random.uniform((), alpha[0], alpha[1])
+            s = tf.random.uniform((), sigma[0], sigma[1])
+            coords = elastic_deform_coordinates(coords, a, s)
+            modified_coords = TFbT
+
+        if do_rotation and tf.less(tf.random.uniform(()), p_rot_per_sample):
+            if tf.less_equal(tf.random.uniform(()), p_rot_per_axis):
+                a_x = tf.random.uniform((), angle_x[0], angle_x[1])
+            else:
+                a_x = TFf0
+
+            if to_tf_bool(tf.equal(dim, 3)):
+                if tf.less_equal(tf.random.uniform(()), p_rot_per_axis):
+                    a_y = tf.random.uniform((), angle_y[0], angle_y[1])
+                else:
+                    a_y = TFf0
+
+                if tf.less_equal(tf.random.uniform(()), p_rot_per_axis):
+                    a_z = tf.random.uniform((), angle_z[0], angle_z[1])
+                else:
+                    a_z = TFf0
+
+                coords = rotate_coords_3d(coords, a_x, a_y, a_z)
+            else:
+                pass
+                # coords = rotate_coords_2d(coords, a_x)
+            modified_coords = TFbT
+
+        if do_scale and tf.less(tf.random.uniform(()), p_scale_per_sample):
+            if independent_scale_for_each_axis and tf.less(
+                tf.random.uniform(()), p_independent_scale_per_axis
+            ):
+                sc = tf.map_fn(
+                    lambda x: tf.cond(
+                        tf.less(tf.random.uniform(()), tf.constant(0.5))
+                        and tf.less(scale[0], tf.constant(1.0)),
+                        lambda: tf.random.uniform((), scale[0], 1.0),
+                        lambda: tf.random.uniform(
+                            (), tf.maximum(scale[0], 1.0), scale[1]
+                        ),
+                    ),
+                    tf.range(dim, dtype=tf.float32),
+                )
+            else:
+                sc = tf.cond(
+                    tf.less(tf.random.uniform(()), 0.5)
+                    and tf.less(scale[0], 1.0),
+                    lambda: tf.random.uniform((), scale[0], 1.0),
+                    lambda: tf.random.uniform(
+                        (), tf.maximum(scale[0], 1.0), scale[1]
+                    ),
+                )
+            coords = scale_coords(coords, sc)
+            modified_coords = TFbT
+
+
+if __name__ == "__main__":
+    data = tf.ones([1, 1, 70, 83, 64])
+    seg = tf.ones([1, 1, 70, 83, 64])
+    patch_size = tf.cast([40, 56, 40], tf.int64)
+
+    with tf.device("/CPU:0"):
+        augment_spatial(data, seg, patch_size)
+        # augment_spatial(data, seg, patch_size)
+        # augment_spatial(data, seg, patch_size)
