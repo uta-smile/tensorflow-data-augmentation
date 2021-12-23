@@ -60,6 +60,7 @@ class TFDABase:
 
     def __init__(self,
                 data_key: str = "data",
+                label_key: str = "seg",
                 p_per_sample: float = 1,
                 p_per_channel: float = 1,
                 per_channel: bool = False,
