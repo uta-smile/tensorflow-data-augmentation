@@ -146,7 +146,7 @@ class SpatialTransform(TFDABase):
             p_independent_scale_per_axis=self.p_independent_scale_per_axis,
         )
 
-        data_dict[self.data_key]=ret_val[0]
+        data_dict[self.data_key] = ret_val[0]
         if seg is not None:
             data_dict[self.label_key] = ret_val[1]
         return data_dict
@@ -155,18 +155,21 @@ class SpatialTransform(TFDABase):
 
 
 if __name__ == '__main__':
-    dataset = (
-        tf.data.Dataset.range(8 * 1 * 1 * 70 * 83 * 64, output_type=tf.float32)
-        .batch(64)
-        .batch(83)
-        .batch(70)
-        .batch(1)
-        .batch(1)
-    )
+    # dataset = (
+    #     tf.data.Dataset.range(8 * 1 * 1 * 70 * 83 * 64, output_type=tf.float32)
+    #     .batch(64)
+    #     .batch(83)
+    #     .batch(70)
+    #     .batch(1)
+    #     .batch(1)
+    # )
 
-    di = iter(dataset)
-    data_sample = next(di)
-    seg_sample = next(di)
+    # di = iter(dataset)
+    # data_sample = next(di)
+    # seg_sample = next(di)
+
+    data_sample = tf.ones((1, 1, 70, 83, 64))
+    seg_sample = tf.ones((1, 1, 70, 83, 64))
 
 
     sa = SpatialTransform(
@@ -175,4 +178,6 @@ if __name__ == '__main__':
     )
 
     with tf.device("/CPU:0"):
-        tf.print(sa(data=data_sample, seg=seg_sample))
+        sa(data=data_sample, seg=seg_sample)
+
+    print("END")

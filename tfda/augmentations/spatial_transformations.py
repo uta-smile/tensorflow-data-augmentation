@@ -73,7 +73,7 @@ def augment_spatial_helper(sample_id: TFT, patch_size: TFT) -> TFT:
     pass
 
 
-@tf.function(experimental_follow_type_hints=True)
+# @tf.function(experimental_follow_type_hints=True)
 def augment_spatial(
     data: TFT,
     seg: Optional[TFT],

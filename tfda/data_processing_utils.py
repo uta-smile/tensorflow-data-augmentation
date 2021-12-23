@@ -1922,17 +1922,17 @@ def crop(
             lambda d: tf.minimum(
                 lbs[d] + crop_size[d], data_shape_here[d + 2]
             ),
-            elems=tf.range(dim),
+            elems=tf.range(dim), dtype=tf.int64
         )
-        lbs = tf.map_fn(lambda d: tf.maximum(tf.constant(0, tf.int64), lbs[d]), elems=tf.range(dim))
+        lbs = tf.map_fn(lambda d: tf.maximum(tf.constant(0, tf.int64), lbs[d]), elems=tf.range(dim), dtype=tf.int64)
 
-        slicer_data_begin = tf.map_fn(lambda d: lbs[d], elems=tf.range(dim))
+        slicer_data_begin = tf.map_fn(lambda d: lbs[d], elems=tf.range(dim), dtype=tf.int64)
         slicer_data_begin = tf.concat(
-            [tf.constant([0]), slicer_data_begin], axis=0
+            [tf.constant([0], dtype=tf.int64), slicer_data_begin], axis=0
         )
 
         slicer_data_size = tf.map_fn(
-            lambda d: ubs[d] - lbs[d], elems=tf.range(dim)
+            lambda d: tf.cast(ubs[d], tf.int64) - lbs[d], elems=tf.range(dim), dtype=tf.int64
         )
         slicer_data_size = tf.concat(
             [[data_shape_here[1]], slicer_data_size], axis=0
