@@ -58,16 +58,18 @@ Seqs = Union[Sequence[T], Iterable[T]]
 class TFDABase:
     """Tensorflow data augmentation base."""
 
-    def __init__(self,
-                data_key: TFT = "data",
-                label_key: TFT = "seg",
-                p_per_sample: TFT = 1,
-                p_per_channel: TFT = 1,
-                per_channel: TFT = False,
-                contrast_range: TFT = (0.75, 1.25),
-                multiplier_range: TFT = (0.5, 2),
-                preserve_range: TFT = True,
-                noise_variance: TFT = (0, 0.1)) -> None:
+    def __init__(
+        self,
+        data_key: TFT = "data",
+        label_key: TFT = "seg",
+        p_per_sample: TFT = 1,
+        p_per_channel: TFT = 1,
+        per_channel: TFT = False,
+        contrast_range: TFT = (0.75, 1.25),
+        multiplier_range: TFT = (0.5, 2),
+        preserve_range: TFT = True,
+        noise_variance: TFT = (0, 0.1),
+    ) -> None:
         self.p_per_sample = to_tf_float(p_per_sample)
         self.p_per_channel = to_tf_float(p_per_channel)
         self.per_channel = to_tf_bool(per_channel)
@@ -91,8 +93,7 @@ class TFDABase:
 class RndTransform(TFDABase):
     """Random transform."""
 
-    def __init__(self, transform: TFDABase,
-                prob: float = 0.5, **kws):
+    def __init__(self, transform: TFDABase, prob: float = 0.5, **kws):
         super().__init__(**kws)
         self.transform = transform
         self.prob = prob
@@ -100,7 +101,11 @@ class RndTransform(TFDABase):
     @tf.function
     def call(self, **data_dict: TFT) -> DTFT:
         """Call the Rnd transform."""
-        return tf.random.uniform() < self.prob and self.transform(**data_dict) or data_dict
+        return (
+            tf.random.uniform() < self.prob
+            and self.transform(**data_dict)
+            or data_dict
+        )
 
 
 class IDTransform(TFDABase):
