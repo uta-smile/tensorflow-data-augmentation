@@ -352,7 +352,7 @@ class DataAugmentor:
             class_locations_decode = tf.io.decode_raw(
                 class_locations_decode, tf.int64
             )
-            class_locations[tf.constant(i + 1, dtype=tf.int32)] = tf.reshape(
+            class_locations[tf.constant(i + 1, dtype=tf.int64)] = tf.reshape(
                 class_locations_decode, (class_locations_shape[i], -1)
             )
         need_to_pad = tf.convert_to_tensor(
@@ -437,13 +437,13 @@ class DataAugmentor:
                 )
             else:
                 bbox_x_lb = tf.random.uniform(
-                    [], minval=lb_x, maxval=ub_x + 1, dtype=tf.int32
+                    [], minval=lb_x, maxval=ub_x + 1, dtype=tf.int64
                 )
                 bbox_y_lb = tf.random.uniform(
-                    [], minval=lb_y, maxval=ub_y + 1, dtype=tf.int32
+                    [], minval=lb_y, maxval=ub_y + 1, dtype=tf.int64
                 )
                 bbox_z_lb = tf.random.uniform(
-                    [], minval=lb_z, maxval=ub_z + 1, dtype=tf.int32
+                    [], minval=lb_z, maxval=ub_z + 1, dtype=tf.int64
                 )
 
         bbox_x_ub = bbox_x_lb + self.basic_generator_patch_size[0]
@@ -530,9 +530,9 @@ class DataAugmentor:
             ), tf.reshape(label, original_label_size[i])
             image = tf.cast(original_image, dtype=tf.float32)
             label = tf.cast(original_label, dtype=tf.float32)
-            # TPU doesn't support tf.int64 well, use tf.int32 directly.
+            # TPU doesn't support tf.int64 well, use tf.int64 directly.
             if label.dtype == tf.int64:
-                label = tf.cast(label, dtype=tf.int32)
+                label = tf.cast(label, dtype=tf.int64)
             class_locations = {}
             for c in range(class_locations_bytes[i].shape[0]):
                 class_locations_decode = tf.io.decode_raw(
@@ -617,10 +617,10 @@ class DataAugmentor:
                         [],
                         minval=0,
                         maxval=len(class_locations),
-                        dtype=tf.int32,
+                        dtype=tf.int64,
                     )
                     for key in class_locations.keys():
-                        if tf.constant(key, dtype=tf.int32) == rand_val:
+                        if tf.constant(key, dtype=tf.int64) == rand_val:
                             voxels_of_that_class = class_locations[key]
                             selected_voxel = random_choice(
                                 voxels_of_that_class, 0
@@ -646,13 +646,13 @@ class DataAugmentor:
                     )
                 else:
                     bbox_x_lb = tf.random.uniform(
-                        [], minval=lb_x, maxval=ub_x + 1, dtype=tf.int32
+                        [], minval=lb_x, maxval=ub_x + 1, dtype=tf.int64
                     )
                     bbox_y_lb = tf.random.uniform(
-                        [], minval=lb_y, maxval=ub_y + 1, dtype=tf.int32
+                        [], minval=lb_y, maxval=ub_y + 1, dtype=tf.int64
                     )
                     bbox_z_lb = tf.random.uniform(
-                        [], minval=lb_z, maxval=ub_z + 1, dtype=tf.int32
+                        [], minval=lb_z, maxval=ub_z + 1, dtype=tf.int64
                     )
 
             bbox_x_ub = bbox_x_lb + self.basic_generator_patch_size[0]
@@ -750,9 +750,9 @@ class DataAugmentor:
             ), tf.reshape(label, original_label_size[i])
             image = tf.cast(original_image, dtype=tf.float32)
             label = tf.cast(original_label, dtype=tf.float32)
-            # TPU doesn't support tf.int64 well, use tf.int32 directly.
+            # TPU doesn't support tf.int64 well, use tf.int64 directly.
             if label.dtype == tf.int64:
-                label = tf.cast(label, dtype=tf.int32)
+                label = tf.cast(label, dtype=tf.int64)
             class_locations = {}
             for c in range(class_locations_bytes[i].shape[0]):
                 class_locations_decode = tf.io.decode_raw(
@@ -777,7 +777,7 @@ class DataAugmentor:
                     [],
                     minval=0,
                     maxval=tf.shape(case_all_data)[1],
-                    dtype=tf.int32,
+                    dtype=tf.int64,
                 )
                 selected_class = None
             else:
@@ -798,10 +798,10 @@ class DataAugmentor:
                         [],
                         minval=0,
                         maxval=len(class_locations),
-                        dtype=tf.int32,
+                        dtype=tf.int64,
                     )
                     for key in class_locations.keys():
-                        if tf.constant(key, dtype=tf.int32) == rand_val:
+                        if tf.constant(key, dtype=tf.int64) == rand_val:
                             voxels_of_that_class = class_locations[key]
                             valid_slices, _ = tf.unique(
                                 voxels_of_that_class[:, 0]
@@ -1192,7 +1192,7 @@ def augment_spatial(
                 # margin = [patch_center_dist_from_border[d] - tf.cast(patch_size[d], dtype=tf.float32) // 2 for d in range(dim)]
                 margin = tf.map_fn(
                     lambda d: tf.cast(
-                        patch_center_dist_from_border[d], dtype=tf.int32
+                        patch_center_dist_from_border[d], dtype=tf.int64
                     )
                     - patch_size[d] // 2,
                     elems=tf.range(dim),
@@ -1280,7 +1280,7 @@ def interpolate_img(
 
 def map_coordinates_seg(seg, cl, coords, result, order):
     seg = tf.cast(tf.equal(seg, cl), dtype=tf.float32)
-    # order = tf.cast(order, tf.int32)
+    # order = tf.cast(order, tf.int64)
     new_seg = tf.cond(
         tf.equal(tf.rank(seg), tf.constant(3)),
         lambda: map_chunk_coordinates_3d(seg, coords, order),
@@ -1351,8 +1351,8 @@ def map_coordinates_3d(img, coords, order=3):
 def map_chunk_coordinates_3d_tmp(img, coords, order=3, chunk_size=4):
     chunk_shape = tf.shape(coords)[1:] // chunk_size
     chunk_shape = tf.concat([[tf.shape(coords)[0]], chunk_shape], axis=0)
-    chunk_shape = tf.cast(chunk_shape, tf.int32)
-    chunk_index = tf.zeros(tf.rank(coords), dtype=tf.int32)
+    chunk_shape = tf.cast(chunk_shape, tf.int64)
+    chunk_index = tf.zeros(tf.rank(coords), dtype=tf.int64)
     total_result = tf.zeros(tf.shape(coords)[1:])
     for k in range(chunk_size):
         cond_to_loop_j = (
@@ -1381,8 +1381,8 @@ def map_chunk_coordinates_3d_tmp(img, coords, order=3, chunk_size=4):
                 chunk_min = tf.math.reduce_min(chunk_coords, axis=0)
                 chunk_max = tf.math.reduce_max(chunk_coords, axis=0)
                 chunk_min, chunk_max = tf.cast(
-                    tf.maximum(tf.constant(0.0), tf.floor(chunk_min)), tf.int32
-                ), tf.cast(tf.round(chunk_max), tf.int32)
+                    tf.maximum(tf.constant(0.0), tf.floor(chunk_min)), tf.int64
+                ), tf.cast(tf.round(chunk_max), tf.int64)
                 slice_size = chunk_max - chunk_min + 1
                 slice_img = tf.slice(img, chunk_min, slice_size)
                 reshape_img = tf.reshape(slice_img, (1, -1, 1))
@@ -1486,8 +1486,8 @@ def map_chunk_coordinates_3d_tmp(img, coords, order=3, chunk_size=4):
 def map_chunk_coordinates_3d(img, coords, order=3, chunk_size=4):
     chunk_shape = tf.shape(coords)[1:] // chunk_size
     chunk_shape = tf.concat([[tf.shape(coords)[0]], chunk_shape], axis=0)
-    chunk_shape = tf.cast(chunk_shape, tf.int32)
-    chunk_index = tf.zeros(tf.rank(coords), dtype=tf.int32)
+    chunk_shape = tf.cast(chunk_shape, tf.int64)
+    chunk_index = tf.zeros(tf.rank(coords), dtype=tf.int64)
     total_result = tf.zeros(tf.shape(coords)[1:])
     cond_to_loop_k = lambda k, chunk_index, chunk_shape, total_result: tf.less(
         k, tf.constant(chunk_size)
@@ -1520,8 +1520,8 @@ def map_chunk_coordinates_3d(img, coords, order=3, chunk_size=4):
                 chunk_min = tf.math.reduce_min(chunk_coords, axis=0)
                 chunk_max = tf.math.reduce_max(chunk_coords, axis=0)
                 chunk_min, chunk_max = tf.cast(
-                    tf.maximum(tf.constant(0.0), tf.floor(chunk_min)), tf.int32
-                ), tf.cast(tf.round(chunk_max), tf.int32)
+                    tf.maximum(tf.constant(0.0), tf.floor(chunk_min)), tf.int64
+                ), tf.cast(tf.round(chunk_max), tf.int64)
                 slice_size = chunk_max - chunk_min + 1
                 slice_img = tf.slice(img, chunk_min, slice_size)
                 reshape_img = tf.reshape(slice_img, (1, -1, 1))
@@ -1632,8 +1632,8 @@ def map_chunk_coordinates_3d(img, coords, order=3, chunk_size=4):
 def map_chunk_coordinates_2d(img, coords, order=3, chunk_size=4):
     chunk_shape = tf.shape(coords)[1:] // chunk_size
     chunk_shape = tf.concat([[tf.shape(coords)[0]], chunk_shape], axis=0)
-    chunk_shape = tf.cast(chunk_shape, tf.int32)
-    chunk_index = tf.zeros(tf.rank(coords), dtype=tf.int32)
+    chunk_shape = tf.cast(chunk_shape, tf.int64)
+    chunk_index = tf.zeros(tf.rank(coords), dtype=tf.int64)
     total_result = tf.zeros(tf.shape(coords)[1:])
     cond_to_loop_j = lambda j, chunk_index, chunk_shape, total_result: tf.less(
         j, tf.constant(chunk_size)
@@ -1659,8 +1659,8 @@ def map_chunk_coordinates_2d(img, coords, order=3, chunk_size=4):
             chunk_min = tf.math.reduce_min(chunk_coords, axis=0)
             chunk_max = tf.math.reduce_max(chunk_coords, axis=0)
             chunk_min, chunk_max = tf.cast(
-                tf.maximum(tf.constant(0.0), tf.floor(chunk_min)), tf.int32
-            ), tf.cast(tf.round(chunk_max), tf.int32)
+                tf.maximum(tf.constant(0.0), tf.floor(chunk_min)), tf.int64
+            ), tf.cast(tf.round(chunk_max), tf.int64)
             slice_size = chunk_max - chunk_min + 1
             slice_img = tf.slice(img, chunk_min, slice_size)
             reshape_img = tf.reshape(slice_img, (1, -1, 1))
@@ -1827,7 +1827,7 @@ def prepared_for_spline_filter(input, mode, cval):
         if mode == "grid-constant":
             padded = tf.pad(
                 input,
-                tf.ones((tf.rank(input), 2), dtype=tf.int32) * npad,
+                tf.ones((tf.rank(input), 2), dtype=tf.int64) * npad,
                 mode="CONSTANT",
                 constant_values=cval,
             )
@@ -1836,7 +1836,7 @@ def prepared_for_spline_filter(input, mode, cval):
             for _ in range(npad):
                 padded = tf.pad(
                     padded,
-                    tf.ones((tf.rank(padded), 2), dtype=tf.int32),
+                    tf.ones((tf.rank(padded), 2), dtype=tf.int64),
                     mode="SYMMETRIC",
                 )
     else:
@@ -1876,7 +1876,7 @@ def crop(
     if not isinstance(crop_size, tf.Tensor):
         crop_size = tf.convert_to_tensor(crop_size)
     if not isinstance(margins, tf.Tensor):
-        margins = tf.convert_to_tensor(margins, dtype=tf.int32)
+        margins = tf.convert_to_tensor(margins, dtype=tf.int64)
 
     data_return = tf.zeros(tf.concat([data_shape[:2], crop_size], axis=0))
     if seg is not None:
@@ -2002,7 +2002,7 @@ def get_lbs_for_random_crop(crop_size, data_shape, margins):
                 [],
                 minval=margins[i],
                 maxval=data_shape[i + 2] - crop_size[i] - margins[i],
-                dtype=tf.int32,
+                dtype=tf.int64,
             ),
             lambda: (data_shape[i + 2] - crop_size[i]) // 2,
         ),
@@ -2060,7 +2060,7 @@ def random_choice(a, axis, sample_shape=None):
     shape = tf.shape(a)
     dim = shape[axis]
     choice_indices = tf.random.uniform(
-        sample_shape, minval=0, maxval=dim, dtype=tf.int32
+        sample_shape, minval=0, maxval=dim, dtype=tf.int64
     )
     samples = tf.gather(a, choice_indices, axis=axis)
     """
