@@ -249,6 +249,6 @@ if __name__ == "__main__":
     patch_size = tf.cast([40, 56, 40], tf.int64)
 
     with tf.device("/CPU:0"):
-        augment_spatial(data, seg, patch_size)
+        augment_spatial(data, seg, patch_size, random_crop=TFbF)
         # augment_spatial(data, seg, patch_size)
         # augment_spatial(data, seg, patch_size)

@@ -73,7 +73,7 @@ def elastic_deform_coordinates(coordinates: TFT, alpha: TFT, sigma: TFT):
         tf.map_fn(
             lambda _: gaussian_filter(
                 (tf.random.uniform(tf.shape(coordinates)[1:]) * 2 - 1),
-                sigma, tf.shape(coordinates)[1:],
+                sigma,
                 mode="constant",
             )
             * alpha,
@@ -170,14 +170,7 @@ def rotate_coords_2d(coords: TFT, angle: TFT) -> TFT:
 
 @tf.function
 def scale_coords(coords: TFT, scale: TFT) -> TFT:
-    return tf.cond(
-        tf.rank(scale) == 0,
-        lambda: coords * scale,
-        lambda: tf.map_fn(
-            lambda i: coords[to_tf_int(i)] * scale[to_tf_int(i)],
-            tf.range(tf.size(scale), dtype=tf.float32),
-        ),
-    )
+    return coords * tf.reshape(scale, (-1, 1))
 
 
 # Gaussian filter related
@@ -224,7 +217,7 @@ def gaussian_filter1d(input: TFT, sigma: TFT, mode: TFT, cval: TFT = TFf0):
 
 @tf.function(experimental_follow_type_hints=True)
 def gaussian_filter(
-        input: TFT, sigma: TFT, shape: TFT, mode: str = "reflect", cval: TFT = TFf0
+        input: TFT, sigma: TFT, mode: str = "reflect", cval: TFT = TFf0
 ) -> TFT:
     """Gaussian filter trans from scipy gaussian filter."""
 
@@ -269,12 +262,12 @@ def gaussian_filter(
                         ),
                         tf.transpose(gfa, perm),
                     ),
-                    shape,
+                    tf.shape(input),
                 ),
                 trans,
                 input,
             ),
-            (shape[0], shape[2], shape[1]),
+            (tf.shape(input)[0], tf.shape(input)[2], tf.shape(input)[1]),
         ),
         (1, 2, 0),
     )
@@ -289,7 +282,7 @@ if __name__ == "__main__":
         coords = create_zero_centered_coordinate_mesh(patch_size)
 
         tf.print(elastic_deform_coordinates(coords, 50, 12).shape)
-        assert elastic_deform_coordinates(coords, 50, 12, tf.concat([[coords.get_shape()[0]], patch_size], 0)).shape == [
+        assert elastic_deform_coordinates(coords, 50, 12).shape == [
             3,
             40,
             56,
@@ -299,8 +292,8 @@ if __name__ == "__main__":
         xs = tf.random.uniform(patch_size, 0, 1)
         s = xs.shape
         tf.print(xs.shape)
-        x = gaussian_filter(xs, 5, patch_size, "reflect")
-        x_ = sf.gaussian_filter(xs, 5, patch_size, mode="reflect")
+        x = gaussian_filter(xs, 5, "reflect")
+        x_ = sf.gaussian_filter(xs, 5, mode="reflect")
         tf.print("\n\n", x[0][0], "\n", x.shape, x[0].shape)
         tf.print("----\n", x_[0][0], "\n", x_.shape, x_[0].shape)
 
