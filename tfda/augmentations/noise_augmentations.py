@@ -37,8 +37,8 @@ Noise Augmentations
 """
 
 # Standard Library
-import time
-from functools import partial
+from tfda.base import TFT
+
 
 import tensorflow as tf
 
@@ -47,7 +47,7 @@ from tfda.utils import TFbF, TFf1, to_tf_bool
 
 
 @tf.function
-def gn_var_fn(noise_variance: tuple[float, float]) -> tf.Tensor:
+def gn_var_fn(noise_variance: TFT) -> tf.Tensor:
     """Gaussian noise variance fn."""
     return tf.cond(
         to_tf_bool(noise_variance[0] == noise_variance[1]),
@@ -59,14 +59,11 @@ def gn_var_fn(noise_variance: tuple[float, float]) -> tf.Tensor:
 @tf.function
 def augment_gaussian_noise(
     data_sample: tf.Tensor,
-    noise_variance: tf.Tensor = None,
+    noise_variance: tf.Tensor = (0, 0.1),
     p_per_channel: tf.Tensor = TFf1,
     per_channel: tf.bool = TFbF,
 ) -> tf.Tensor:
     """Apply gaussian noise on tf Tensor."""
-    if to_tf_bool(noise_variance is None):
-        noise_variance = tf.cast([0, 0.1], tf.float32)
-
     variance = tf.cond(
         to_tf_bool(not per_channel),
         lambda: gn_var_fn(noise_variance),

@@ -35,13 +35,7 @@ license  : GPL-3.0+
 
 Color Transforms
 """
-# Standard Library
-from dataclasses import dataclass
-
 import tensorflow as tf
-
-# Types
-from typing import Callable
 
 # Others
 from tfda.augmentations.color_augmentations import (

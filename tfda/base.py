@@ -34,7 +34,7 @@ project  : tfda
 
 Tensorflow data augmentation base
 """
-from __future__ import annotations
+# from __future__ import annotations
 
 # Standard Library
 import abc
@@ -59,15 +59,15 @@ class TFDABase:
     """Tensorflow data augmentation base."""
 
     def __init__(self,
-                data_key: str = "data",
-                label_key: str = "seg",
-                p_per_sample: float = 1,
-                p_per_channel: float = 1,
-                per_channel: bool = False,
-                contrast_range: tuple[float, float] = (0.75, 1.25),
-                multiplier_range: tuple[float, float] = (0.5, 2),
-                preserve_range: bool = True,
-                noise_variance: tuple[float, float] = (0, 0.1)) -> None:
+                data_key: TFT = "data",
+                label_key: TFT = "seg",
+                p_per_sample: TFT = 1,
+                p_per_channel: TFT = 1,
+                per_channel: TFT = False,
+                contrast_range: TFT = (0.75, 1.25),
+                multiplier_range: TFT = (0.5, 2),
+                preserve_range: TFT = True,
+                noise_variance: TFT = (0, 0.1)) -> None:
         self.p_per_sample = to_tf_float(p_per_sample)
         self.p_per_channel = to_tf_float(p_per_channel)
         self.per_channel = to_tf_bool(per_channel)
@@ -119,7 +119,7 @@ class Compose(TFDABase):
         super().__init__(**kws)
         self.transforms = transforms
 
-    def add(self, transform: TFDABase) -> Compose:
+    def add(self, transform: TFDABase) -> "Compose":
         """Add transform."""
         self.transforms = chain(self.transforms, (transform,))
         return self

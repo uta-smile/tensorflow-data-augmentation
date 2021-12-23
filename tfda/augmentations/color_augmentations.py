@@ -41,7 +41,7 @@ import tensorflow as tf
 from tfda.utils import TFbT, TFf1, to_tf_bool
 
 
-@tf.function
+@tf.function(experimental_follow_type_hints=True)
 def augment_contrast_help(
     x: tf.Tensor, preserve_range: tf.Tensor, factor: tf.Tensor
 ) -> tf.Tensor:
@@ -57,7 +57,7 @@ def augment_contrast_help(
     return nx
 
 
-@tf.function
+@tf.function(experimental_follow_type_hints=True)
 def augment_factor_help(
     pred: tf.Tensor, contrast_range: tf.Tensor
 ) -> tf.Tensor:
@@ -70,17 +70,15 @@ def augment_factor_help(
     )
 
 
-@tf.function
+@tf.function(experimental_follow_type_hints=True)
 def augment_contrast(
     data_sample: tf.Tensor,
-    contrast_range: tf.Tensor = None,
+    contrast_range: tf.Tensor = (0.75, 1.25),
     preserve_range: tf.Tensor = TFbT,
     per_channel: tf.Tensor = TFbT,
     p_per_channel: tf.Tensor = TFf1,
 ) -> tf.Tensor:
     """Augment contrast."""
-    if to_tf_bool(contrast_range is None):
-        contrast_range = tf.cast([0.75, 1.25], tf.float32)
     # TODO: callable contrast_range
     if not per_channel:
         factor = augment_factor_help(
@@ -112,7 +110,7 @@ def augment_contrast(
     return data_sample
 
 
-@tf.function
+@tf.function(experimental_follow_type_hints=True)
 def augment_brightness_additive(
     data_sample: tf.Tensor,
     mu: tf.Tensor,
@@ -121,7 +119,7 @@ def augment_brightness_additive(
     p_per_channel: tf.Tensor = TFf1,
 ) -> tf.Tensor:
     """Augment brightness additive."""
-    if not per_channel:
+    if to_tf_bool(not per_channel):
         rnd_nb = tf.random.uniform((), mu, sigma)
         data_sample = tf.map_fn(
             lambda x: tf.cond(
@@ -143,20 +141,18 @@ def augment_brightness_additive(
     return data_sample
 
 
-@tf.function
+@tf.function(experimental_follow_type_hints=True)
 def augment_brightness_multiplicative(
     data_sample: tf.Tensor,
-    multiplier_range: tf.Tensor = None,
+    multiplier_range: tf.Tensor = (0.5, 2),
     per_channel: tf.Tensor = TFbT,
 ) -> tf.Tensor:
     """Augment brightness multiplicative."""
-    if to_tf_bool(multiplier_range is None):
-        multiplier_range = tf.cast([0.5, 2], tf.float32)
     multiplier = tf.random.uniform(
         (), multiplier_range[0], multiplier_range[1]
     )
 
-    if not per_channel:
+    if to_tf_bool(not per_channel):
         data_sample *= multiplier
     else:
         data_sample = tf.map_fn(
