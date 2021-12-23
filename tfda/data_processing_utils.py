@@ -1521,7 +1521,13 @@ def map_chunk_coordinates_3d(img, coords, order=3, chunk_size=4):
                 chunk_max = tf.math.reduce_max(chunk_coords, axis=0)
                 chunk_min, chunk_max = tf.cast(
                     tf.maximum(tf.constant(0.0), tf.floor(chunk_min)), tf.int64
-                ), tf.cast(tf.minimum(tf.cast(tf.shape(img), dtype=tf.float32), tf.round(chunk_max)), tf.int64)
+                ), tf.cast(
+                    tf.minimum(
+                        tf.cast(tf.shape(img), dtype=tf.float32),
+                        tf.round(chunk_max),
+                    ),
+                    tf.int64,
+                )
                 slice_size = chunk_max - chunk_min
                 slice_img = tf.slice(img, chunk_min, slice_size)
                 reshape_img = tf.reshape(slice_img, (1, -1, 1))
@@ -1575,7 +1581,10 @@ def map_chunk_coordinates_3d(img, coords, order=3, chunk_size=4):
                     chunk_shape = tf.tensor_scatter_nd_update(
                         chunk_shape,
                         [[1]],
-                        [tf.shape(coords, out_type=tf.int64)[1] - chunk_index[1]],
+                        [
+                            tf.shape(coords, out_type=tf.int64)[1]
+                            - chunk_index[1]
+                        ],
                     )
                 total_result = tf.tensor_scatter_nd_add(
                     total_result, map_coords, result
@@ -1594,11 +1603,15 @@ def map_chunk_coordinates_3d(img, coords, order=3, chunk_size=4):
             )
             chunk_index = tf.tensor_scatter_nd_update(chunk_index, [[1]], [0])
             chunk_shape = tf.tensor_scatter_nd_update(
-                chunk_shape, [[1]], [tf.shape(coords, out_type=tf.int64)[1] // chunk_size]
+                chunk_shape,
+                [[1]],
+                [tf.shape(coords, out_type=tf.int64)[1] // chunk_size],
             )
             if j == chunk_size - 2:
                 chunk_shape = tf.tensor_scatter_nd_update(
-                    chunk_shape, [[2]], [tf.shape(coords, out_type=tf.int64)[2] - chunk_index[2]]
+                    chunk_shape,
+                    [[2]],
+                    [tf.shape(coords, out_type=tf.int64)[2] - chunk_index[2]],
                 )
             j = j + 1
             return j, chunk_index, chunk_shape, total_result
@@ -1618,7 +1631,9 @@ def map_chunk_coordinates_3d(img, coords, order=3, chunk_size=4):
         )
         if k == chunk_size - 2:
             chunk_shape = tf.tensor_scatter_nd_update(
-                chunk_shape, [[3]], [tf.shape(coords, out_type=tf.int64)[3] - chunk_index[3]]
+                chunk_shape,
+                [[3]],
+                [tf.shape(coords, out_type=tf.int64)[3] - chunk_index[3]],
             )
         k = k + 1
         return k, chunk_index, chunk_shape, total_result
@@ -1901,11 +1916,17 @@ def crop(
             lbs = get_lbs_for_random_crop(crop_size, data_shape_here, margins)
 
         need_to_pad_lb = tf.map_fn(
-            lambda d: tf.abs(tf.minimum(tf.constant(0, dtype=tf.int64), lbs[d])), elems=tf.range(dim)
+            lambda d: tf.abs(
+                tf.minimum(tf.constant(0, dtype=tf.int64), lbs[d])
+            ),
+            elems=tf.range(dim),
         )
         need_to_pad_ub = tf.map_fn(
             lambda d: tf.abs(
-                tf.minimum(tf.constant(0, tf.int64), data_shape_here[d + 2] - (lbs[d] + crop_size[d]))
+                tf.minimum(
+                    tf.constant(0, tf.int64),
+                    data_shape_here[d + 2] - (lbs[d] + crop_size[d]),
+                )
             ),
             elems=tf.range(dim),
         )
@@ -1916,17 +1937,26 @@ def crop(
             ],
             axis=1,
         )
-        need_to_pad = tf.concat([tf.constant([[0, 0]], dtype=tf.int64), need_to_pad], axis=0)
+        need_to_pad = tf.concat(
+            [tf.constant([[0, 0]], dtype=tf.int64), need_to_pad], axis=0
+        )
 
         ubs = tf.map_fn(
             lambda d: tf.minimum(
                 lbs[d] + crop_size[d], data_shape_here[d + 2]
             ),
-            elems=tf.range(dim), dtype=tf.int64
+            elems=tf.range(dim),
+            dtype=tf.int64,
         )
-        lbs = tf.map_fn(lambda d: tf.maximum(tf.constant(0, tf.int64), lbs[d]), elems=tf.range(dim), dtype=tf.int64)
+        lbs = tf.map_fn(
+            lambda d: tf.maximum(tf.constant(0, tf.int64), lbs[d]),
+            elems=tf.range(dim),
+            dtype=tf.int64,
+        )
 
-        slicer_data_begin = tf.map_fn(lambda d: lbs[d], elems=tf.range(dim), dtype=tf.int64)
+        slicer_data_begin = tf.map_fn(
+            lambda d: lbs[d], elems=tf.range(dim), dtype=tf.int64
+        )
         slicer_data_begin = tf.concat(
             [tf.constant([0], dtype=tf.int64), slicer_data_begin], axis=0
         )
@@ -1954,12 +1984,16 @@ def crop(
             seg_cropped = tf.slice(seg[b], slicer_seg_begin, slicer_seg_size)
 
         data_result_b = tf.cond(
-            tf.reduce_any(tf.less(tf.constant(0, dtype=tf.int64), need_to_pad)),
+            tf.reduce_any(
+                tf.less(tf.constant(0, dtype=tf.int64), need_to_pad)
+            ),
             lambda: pad(data_cropped, need_to_pad, pad_mode, pad_kwargs),
             lambda: data_cropped,
         )
         seg_result_b = tf.cond(
-            tf.reduce_any(tf.less(tf.constant(0, dtype=tf.int64), need_to_pad)),
+            tf.reduce_any(
+                tf.less(tf.constant(0, dtype=tf.int64), need_to_pad)
+            ),
             lambda: pad(
                 seg_cropped, need_to_pad, pad_mode_seg, pad_kwargs_seg
             ),

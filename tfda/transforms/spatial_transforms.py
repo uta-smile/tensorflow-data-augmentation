@@ -36,12 +36,11 @@ license  : GPL-3.0+
 Spatial Transforms
 """
 
-import tensorflow as tf
-
-# Others
 from tfda.augmentations.spatial_transformations import augment_spatial
 from tfda.base import DTFT, TFT, TFDABase
 from tfda.utils import TFbF, TFbT, TFf0, TFf1, TFi1, pi
+
+import tensorflow as tf
 
 
 class SpatialTransform(TFDABase):
@@ -152,9 +151,7 @@ class SpatialTransform(TFDABase):
         return data_dict
 
 
-
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     # dataset = (
     #     tf.data.Dataset.range(8 * 1 * 1 * 70 * 83 * 64, output_type=tf.float32)
     #     .batch(64)
@@ -171,16 +168,12 @@ if __name__ == '__main__':
     data_sample = tf.random.uniform((1, 1, 70, 83, 64))
     seg_sample = tf.random.uniform((1, 1, 70, 83, 64))
 
+    sa = SpatialTransform(tf.cast([40, 56, 40], tf.int64), random_crop=TFbF)
 
-    sa = SpatialTransform(
-        tf.cast([40, 56, 40], tf.int64),
-        random_crop=TFbF
-    )
-
-    #with tf.device("/CPU:0"):
+    # with tf.device("/CPU:0"):
     mirrored_strategy = tf.distribute.MirroredStrategy()
 
-    #with tf.device("/CPU:0"):
+    # with tf.device("/CPU:0"):
     with mirrored_strategy.scope():
         tf.print(sa(data=data_sample, seg=seg_sample))
 

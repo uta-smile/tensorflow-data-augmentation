@@ -35,10 +35,9 @@ license  : GPL-3.0+
 
 Color Augmentation
 """
-import tensorflow as tf
-
-# Others
 from tfda.utils import TFbT, TFf1, to_tf_bool
+
+import tensorflow as tf
 
 
 @tf.function(experimental_follow_type_hints=True)

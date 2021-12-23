@@ -39,7 +39,8 @@ Tensorflow data augmentation base
 # Standard Library
 import abc
 from itertools import chain
-from tfda.utils import to_tf_float, to_tf_bool
+
+from tfda.utils import to_tf_bool, to_tf_float
 
 import tensorflow as tf
 

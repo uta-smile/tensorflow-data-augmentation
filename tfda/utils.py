@@ -35,11 +35,13 @@ license  : GPL-3.0+
 
 Utils
 """
+# Standard Library
+import math as m
+
 import tensorflow as tf
 
 # Types
 from typing import Any
-import math as m
 
 TFf0 = tf.cast(0, tf.float32)
 TFf1 = tf.cast(1, tf.float32)

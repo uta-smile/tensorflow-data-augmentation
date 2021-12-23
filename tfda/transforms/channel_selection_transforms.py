@@ -39,11 +39,10 @@ Channel Selection Transforms
 from dataclasses import dataclass
 from warnings import warn
 
-import tensorflow as tf
-
-# Others
 from tfda.base import DTFT, TFT, TFDABase
 from tfda.utils import to_tf_bool, to_tf_float, to_tf_int
+
+import tensorflow as tf
 
 
 @dataclass

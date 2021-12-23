@@ -35,13 +35,11 @@ license  : GPL-3.0+
 
 Noise Transforms
 """
-# Standard Library
-import tensorflow as tf
-
-# Others
 from tfda.augmentations.noise_augmentations import augment_gaussian_noise
 from tfda.base import DTFT, TFT, TFDABase
 from tfda.utils import to_tf_bool, to_tf_float
+
+import tensorflow as tf
 
 
 class GaussianNoiseTransform(TFDABase):

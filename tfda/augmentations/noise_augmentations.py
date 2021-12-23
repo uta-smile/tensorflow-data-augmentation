@@ -36,14 +36,10 @@ license  : GPL-3.0+
 Noise Augmentations
 """
 
-# Standard Library
 from tfda.base import TFT
-
+from tfda.utils import TFbF, TFf1, to_tf_bool
 
 import tensorflow as tf
-
-# Others
-from tfda.utils import TFbF, TFf1, to_tf_bool
 
 
 @tf.function
@@ -90,7 +86,9 @@ def augment_gaussian_noise(
 
 
 if __name__ == "__main__":
-    dataset = tf.data.Dataset.range(10, output_type=tf.float32).batch(5).batch(2)
+    dataset = (
+        tf.data.Dataset.range(10, output_type=tf.float32).batch(5).batch(2)
+    )
     xs = next(iter(dataset))
     datasample = tf.cast(xs[0], tf.float32)
 

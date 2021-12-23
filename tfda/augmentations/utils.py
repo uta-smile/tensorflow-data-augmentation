@@ -36,11 +36,11 @@ license  : GPL-3.0+
 Augmentation Utils
 """
 
-import tensorflow as tf
-
 # tf.debugging.set_log_device_placement(True)
 from tfda.base import TFT
-from tfda.utils import to_tf_bool, to_tf_float, to_tf_int, TFbF, TFbT, TFf0
+from tfda.utils import TFbF, TFbT, TFf0, to_tf_bool, to_tf_float, to_tf_int
+
+import tensorflow as tf
 
 
 @tf.function
@@ -138,7 +138,7 @@ def create_matrix_rotation_2d(angle: TFT, matrix: TFT = None) -> TFT:
 
 @tf.function
 def rotate_coords_3d(
-        coords: TFT, angle_x: TFT, angle_y: TFT, angle_z: TFT
+    coords: TFT, angle_x: TFT, angle_y: TFT, angle_z: TFT
 ) -> TFT:
     rot_matrix = tf.eye(tf.shape(coords)[0])
 
@@ -217,7 +217,7 @@ def gaussian_filter1d(input: TFT, sigma: TFT, mode: TFT, cval: TFT = TFf0):
 
 @tf.function(experimental_follow_type_hints=True)
 def gaussian_filter(
-        input: TFT, sigma: TFT, mode: str = "reflect", cval: TFT = TFf0
+    input: TFT, sigma: TFT, mode: str = "reflect", cval: TFT = TFf0
 ) -> TFT:
     """Gaussian filter trans from scipy gaussian filter."""
 
@@ -274,6 +274,7 @@ def gaussian_filter(
 
 
 if __name__ == "__main__":
+    # Others
     import scipy.ndimage.filters as sf
 
     patch_size = tf.constant([40, 56, 40])

@@ -36,13 +36,7 @@ license  : GPL-3.0+
 spatial transformations
 """
 
-import tensorflow as tf
-
-# Types
-from typing import Optional
-
 # tf.debugging.set_log_device_placement(True)
-# Others
 from tfda.augmentations.utils import (
     create_zero_centered_coordinate_mesh,
     elastic_deform_coordinates,
@@ -67,6 +61,11 @@ from tfda.utils import (
     to_tf_bool,
     to_tf_float
 )
+
+import tensorflow as tf
+
+# Types
+from typing import Optional
 
 
 def augment_spatial_helper(sample_id: TFT, patch_size: TFT) -> TFT:
@@ -289,8 +288,8 @@ def augment_spatial(
             #         data[sample_id : sample_id + 1], patch_size, s
             #     )
             d, s = center_crop_fn(
-                    data[sample_id : sample_id + 1], patch_size, s
-                )
+                data[sample_id : sample_id + 1], patch_size, s
+            )
             data_result = update_tf_channel(data_result, sample_id, d[0])
             if seg is not None:
                 seg_result = update_tf_channel(seg_result, sample_id, s[0])
@@ -355,7 +354,7 @@ if __name__ == "__main__":
     patch_size = tf.cast([40, 56, 40], tf.int64)
     mirrored_strategy = tf.distribute.MirroredStrategy()
 
-    #with tf.device("/CPU:0"):
+    # with tf.device("/CPU:0"):
     with mirrored_strategy.scope():
         augment_spatial(data, seg, patch_size, random_crop=TFbF)
         # augment_spatial(data, seg, patch_size)
