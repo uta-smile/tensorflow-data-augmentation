@@ -235,9 +235,9 @@ def augment_spatial(
     dim = tf.shape(patch_size)[0]
     seg_result = None
     if seg is not None:
-        seg_result = tf.cond(tf.equal(dim, tf.constant(2)), lambda: tf.zeros(tf.concat([tf.shape(seg)[:2], patch_size[:2]], axis=0)), lambda: tf.zeros(tf.concat([tf.shape(seg)[:2], patch_size[:3]], axis=0)))
+        seg_result = tf.cond(tf.equal(dim, tf.constant(2)), lambda: tf.zeros(tf.concat([tf.shape(seg, out_type=tf.int64)[:2], patch_size[:2]], axis=0)), lambda: tf.zeros(tf.concat([tf.shape(seg, out_type=tf.int64)[:2], patch_size[:3]], axis=0)))
 
-    data_result = tf.cond(tf.equal(dim, tf.constant(2)), lambda: tf.zeros(tf.concat([tf.shape(data)[:2], patch_size[:2]], axis=0)), lambda: tf.zeros(tf.concat([tf.shape(data)[:2], patch_size[:3]], axis=0)))
+    data_result = tf.cond(tf.equal(dim, tf.constant(2)), lambda: tf.zeros(tf.concat([tf.shape(data, out_type=tf.int64)[:2], patch_size[:2]], axis=0)), lambda: tf.zeros(tf.concat([tf.shape(data, out_type=tf.int64)[:2], patch_size[:3]], axis=0)))
     sample_num = tf.shape(data)[0]
     sample_id = tf.constant(0)
     _, _, _, _, data_result, seg_result = tf.while_loop(cond_to_loop, augment_per_sample, [sample_id, patch_size, data, seg, data_result, seg_result])
