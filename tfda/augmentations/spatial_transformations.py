@@ -272,20 +272,23 @@ def augment_spatial(
                 s = None
             else:
                 s = seg[sample_id : sample_id + 1]
-            if random_crop:
-                # margin = [patch_center_dist_from_border[d] - tf.cast(patch_size[d], dtype=tf.float32) // 2 for d in range(dim)]
-                margin = tf.map_fn(
-                    lambda d: tf.cast(
-                        patch_center_dist_from_border[d], dtype=tf.int64
-                    )
-                    - patch_size[d] // 2,
-                    elems=tf.range(dim),
-                )
-                d, s = random_crop_fn(
-                    data[sample_id : sample_id + 1], s, patch_size, margin
-                )
-            else:
-                d, s = center_crop_fn(
+            # if random_crop:
+            #     # margin = [patch_center_dist_from_border[d] - tf.cast(patch_size[d], dtype=tf.float32) // 2 for d in range(dim)]
+            #     margin = tf.map_fn(
+            #         lambda d: tf.cast(
+            #             patch_center_dist_from_border[d], dtype=tf.int64
+            #         )
+            #         - patch_size[d] // 2,
+            #         elems=tf.range(dim),
+            #     )
+            #     d, s = random_crop_fn(
+            #         data[sample_id : sample_id + 1], s, patch_size, margin
+            #     )
+            # else:
+            #     d, s = center_crop_fn(
+            #         data[sample_id : sample_id + 1], patch_size, s
+            #     )
+            d, s = center_crop_fn(
                     data[sample_id : sample_id + 1], patch_size, s
                 )
             data_result = update_tf_channel(data_result, sample_id, d[0])

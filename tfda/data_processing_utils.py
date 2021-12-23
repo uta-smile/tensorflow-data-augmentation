@@ -1254,9 +1254,9 @@ def augment_spatial(
 def interpolate_img(
     img, coords, order=3, mode="nearest", cval=0.0, is_seg=False
 ):
+    unique_labels, _ = tf.unique(tf.reshape(img, (1, -1))[0])
     if is_seg and order != 0:
         # assert img is None, f'{img}'
-        unique_labels, _ = tf.unique(tf.reshape(img, (1, -1))[0])
         result = tf.zeros(tf.shape(coords)[1:], dtype=tf.float32)
         cond_to_loop = lambda img, i, coords, result, order: tf.less(
             i, tf.shape(unique_labels)[0]
@@ -1264,7 +1264,7 @@ def interpolate_img(
 
         def body_fn(img, i, coords, result, order):
             img, _, coords, result, order = map_coordinates_seg(
-                img, unique_labels[i], coords, result, 3
+                img, unique_labels[i], coords, result, order
             )  # here I force the order = 3
             i = i + 1
             return img, i, coords, result, order
@@ -1574,7 +1574,7 @@ def map_chunk_coordinates_3d(img, coords, order=3, chunk_size=4):
                     chunk_shape = tf.tensor_scatter_nd_update(
                         chunk_shape,
                         [[1]],
-                        [tf.shape(coords)[1] - chunk_index[1]],
+                        [tf.shape(coords, out_type=tf.int64)[1] - chunk_index[1]],
                     )
                 total_result = tf.tensor_scatter_nd_add(
                     total_result, map_coords, result
@@ -1617,7 +1617,7 @@ def map_chunk_coordinates_3d(img, coords, order=3, chunk_size=4):
         )
         if k == chunk_size - 2:
             chunk_shape = tf.tensor_scatter_nd_update(
-                chunk_shape, [[3]], [tf.shape(coords)[3] - chunk_index[3]]
+                chunk_shape, [[3]], [tf.shape(coords, out_type=tf.int64)[3] - chunk_index[3]]
             )
         k = k + 1
         return k, chunk_index, chunk_shape, total_result
@@ -1865,11 +1865,11 @@ def crop(
     pad_kwargs_seg={"constant_values": 0},
 ):
 
-    data_shape = tf.shape(data)
+    data_shape = tf.shape(data, out_type=tf.int64)
     dim = tf.rank(data) - 2
 
     if seg is not None:
-        seg_shape = tf.shape(seg)
+        seg_shape = tf.shape(seg, out_type=tf.int64)
         #  other assertion will not be included here because it doesn't influence the result
 
     # all assertion is removed because it is unnecessary here
@@ -1887,7 +1887,7 @@ def crop(
 
     def body_fn(b, data_result, seg_result):
         data_shape_here = tf.concat(
-            [[data_shape[0]], tf.shape(data[b])], axis=0
+            [[data_shape[0]], tf.shape(data[b], out_type=tf.int64)], axis=0
         )
         if seg is not None:
             seg_shape_here = tf.concat(
@@ -1900,11 +1900,11 @@ def crop(
             lbs = get_lbs_for_random_crop(crop_size, data_shape_here, margins)
 
         need_to_pad_lb = tf.map_fn(
-            lambda d: tf.abs(tf.minimum(0, lbs[d])), elems=tf.range(dim)
+            lambda d: tf.abs(tf.minimum(tf.constant(0, dtype=tf.int64), lbs[d])), elems=tf.range(dim)
         )
         need_to_pad_ub = tf.map_fn(
             lambda d: tf.abs(
-                tf.minimum(0, data_shape_here[d + 2] - (lbs[d] + crop_size[d]))
+                tf.minimum(tf.constant(0, tf.int64), data_shape_here[d + 2] - (lbs[d] + crop_size[d]))
             ),
             elems=tf.range(dim),
         )
@@ -1923,7 +1923,7 @@ def crop(
             ),
             elems=tf.range(dim),
         )
-        lbs = tf.map_fn(lambda d: tf.maximum(0, lbs[d]), elems=tf.range(dim))
+        lbs = tf.map_fn(lambda d: tf.maximum(tf.constant(0, tf.int64), lbs[d]), elems=tf.range(dim))
 
         slicer_data_begin = tf.map_fn(lambda d: lbs[d], elems=tf.range(dim))
         slicer_data_begin = tf.concat(
@@ -1970,7 +1970,7 @@ def crop(
         b = b + 1
         return b, data_result, seg_result
 
-    b = tf.constant(0)
+    b = tf.constant(0, dtype=tf.int64)
     _, data_return, seg_return = tf.while_loop(
         cond_to_loop, body_fn, [b, data_return, seg_return]
     )
@@ -1987,9 +1987,10 @@ def pad(data, need_to_pad, pad_mode, pad_kwargs):
 
 
 def get_lbs_for_center_crop(crop_size, data_shape):
+    data_shape = tf.cast(data_shape, tf.int64)
     lbs = tf.map_fn(
         lambda i: (data_shape[i] - crop_size[i]) // 2,
-        elems=tf.range(tf.shape(data_shape)[0] - 2),
+        elems=tf.range(tf.shape(data_shape, out_type=tf.int64)[0] - 2),
     )
     return lbs
 
