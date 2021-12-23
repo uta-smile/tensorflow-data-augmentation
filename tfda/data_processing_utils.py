@@ -1867,7 +1867,7 @@ def crop(
 ):
 
     data_shape = tf.shape(data, out_type=tf.int64)
-    dim = tf.rank(data) - 2
+    dim = tf.cast(tf.rank(data), dtype=tf.int64) - 2
 
     if seg is not None:
         seg_shape = tf.shape(seg, out_type=tf.int64)
@@ -1916,7 +1916,7 @@ def crop(
             ],
             axis=1,
         )
-        need_to_pad = tf.concat([tf.constant([[0, 0]]), need_to_pad], axis=0)
+        need_to_pad = tf.concat([tf.constant([[0, 0]], dtype=tf.int64), need_to_pad], axis=0)
 
         ubs = tf.map_fn(
             lambda d: tf.minimum(
@@ -1932,7 +1932,7 @@ def crop(
         )
 
         slicer_data_size = tf.map_fn(
-            lambda d: tf.cast(ubs[d], tf.int64) - lbs[d], elems=tf.range(dim), dtype=tf.int64
+            lambda d: ubs[d] - lbs[d], elems=tf.range(dim), dtype=tf.int64
         )
         slicer_data_size = tf.concat(
             [[data_shape_here[1]], slicer_data_size], axis=0
@@ -1942,11 +1942,11 @@ def crop(
         if seg_result is not None:
             slicer_seg_begin = tf.map_fn(lambda d: lbs[d], elems=tf.range(dim))
             slicer_seg_begin = tf.concat(
-                [tf.constant([0]), slicer_seg_begin], axis=0
+                [tf.constant([0], dtype=tf.int64), slicer_seg_begin], axis=0
             )
 
             slicer_seg_size = tf.map_fn(
-                lambda d: ubs[d] - lbs[d], elems=tf.range(dim)
+                lambda d: ubs[d] - lbs[d], elems=tf.range(dim), dtype=tf.int64
             )
             slicer_seg_size = tf.concat(
                 [[seg_shape_here[1]], slicer_seg_size], axis=0
@@ -1954,12 +1954,12 @@ def crop(
             seg_cropped = tf.slice(seg[b], slicer_seg_begin, slicer_seg_size)
 
         data_result_b = tf.cond(
-            tf.reduce_any(tf.less(tf.constant(0), need_to_pad)),
+            tf.reduce_any(tf.less(tf.constant(0, dtype=tf.int64), need_to_pad)),
             lambda: pad(data_cropped, need_to_pad, pad_mode, pad_kwargs),
             lambda: data_cropped,
         )
         seg_result_b = tf.cond(
-            tf.reduce_any(tf.less(tf.constant(0), need_to_pad)),
+            tf.reduce_any(tf.less(tf.constant(0, dtype=tf.int64), need_to_pad)),
             lambda: pad(
                 seg_cropped, need_to_pad, pad_mode_seg, pad_kwargs_seg
             ),

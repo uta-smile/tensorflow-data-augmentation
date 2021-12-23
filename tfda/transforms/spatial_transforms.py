@@ -168,8 +168,8 @@ if __name__ == '__main__':
     # data_sample = next(di)
     # seg_sample = next(di)
 
-    data_sample = tf.ones((1, 1, 70, 83, 64))
-    seg_sample = tf.ones((1, 1, 70, 83, 64))
+    data_sample = tf.random.uniform((1, 1, 70, 83, 64))
+    seg_sample = tf.random.uniform((1, 1, 70, 83, 64))
 
 
     sa = SpatialTransform(
@@ -177,7 +177,11 @@ if __name__ == '__main__':
         random_crop=TFbF
     )
 
-    with tf.device("/CPU:0"):
-        sa(data=data_sample, seg=seg_sample)
+    #with tf.device("/CPU:0"):
+    mirrored_strategy = tf.distribute.MirroredStrategy()
+
+    #with tf.device("/CPU:0"):
+    with mirrored_strategy.scope():
+        tf.print(sa(data=data_sample, seg=seg_sample))
 
     print("END")
