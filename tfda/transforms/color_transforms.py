@@ -38,7 +38,7 @@ Color Transforms
 from tfda.augmentations.color_augmentations import (
     augment_brightness_additive,
     augment_brightness_multiplicative,
-    augment_contrast
+    augment_contrast,
 )
 from tfda.base import DTFT, TFT, TFDABase
 from tfda.utils import to_tf_bool, to_tf_float

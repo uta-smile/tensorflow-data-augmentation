@@ -42,14 +42,14 @@ from tfda.augmentations.utils import (
     elastic_deform_coordinates,
     rotate_coords_2d,
     rotate_coords_3d,
-    scale_coords
+    scale_coords,
 )
 from tfda.base import TFT
 from tfda.data_processing_utils import (
     center_crop_fn,
     interpolate_img,
     random_crop_fn,
-    update_tf_channel
+    update_tf_channel,
 )
 from tfda.utils import (
     TFbF,
@@ -59,7 +59,7 @@ from tfda.utils import (
     TFi1,
     pi,
     to_tf_bool,
-    to_tf_float
+    to_tf_float,
 )
 
 import tensorflow as tf
