@@ -44,7 +44,7 @@ from tfda.base import DTFT, TFT, TFDABase
 from tfda.utils import TFbF, TFbT, TFf0, TFf1, TFi1, pi
 
 
-class SpatialTransforms(TFDABase):
+class SpatialTransform(TFDABase):
     def __init__(
         self,
         patch_size: TFT,
@@ -170,7 +170,7 @@ if __name__ == '__main__':
     seg_sample = tf.ones((1, 1, 70, 83, 64))
 
 
-    sa = SpatialTransforms(
+    sa = SpatialTransform(
         tf.cast([40, 56, 40], tf.int64),
         random_crop=TFbF
     )
