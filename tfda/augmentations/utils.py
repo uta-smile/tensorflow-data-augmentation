@@ -36,11 +36,38 @@ license  : GPL-3.0+
 Augmentation Utils
 """
 
+import tensorflow as tf
+
+# Others
 # tf.debugging.set_log_device_placement(True)
 from tfda.base import TFT
 from tfda.utils import TFbF, TFbT, TFf0, to_tf_bool, to_tf_float, to_tf_int
 
-import tensorflow as tf
+
+@tf.function
+def get_range_val(value, rnd_type="uniform"):
+    if isinstance(value, (list, tuple)):
+        if len(value) == 2:
+            if value[0] == value[1]:
+                n_val = value[0]
+            else:
+                if rnd_type == "uniform":
+                    n_val = tf.random.uniform(
+                        (), minval=value[0], maxval=value[1], dtype=tf.float32
+                    )
+                elif rnd_type == "normal":
+                    n_val = tf.random.normal(
+                        (), mean=value[0], stddev=value[1], dtype=tf.float32
+                    )
+        elif len(value) == 1:
+            n_val = value[0]
+        else:
+            raise RuntimeError(
+                "value must be either a single value or a list/tuple of len 2"
+            )
+        return n_val
+    else:
+        return value
 
 
 @tf.function

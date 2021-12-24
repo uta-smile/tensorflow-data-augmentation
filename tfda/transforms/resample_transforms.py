@@ -1,7 +1,10 @@
 import tensorflow as tf
 
+# Others
+from tfda.base import TFDABase
 
-class SimulateLowResolutionTransform(AbstractTransform):
+
+class SimulateLowResolutionTransform(TFDABase):
     """Downsamples each sample (linearly) by a random factor and upsamples to original resolution again
     (nearest neighbor)
 
@@ -143,8 +146,8 @@ def volume_resize(input_data, target_shape, method):
     image = tf.image.resize(image, target_shape[:-1], method=method)
     return image
 
-  
-  
+
+
 
 if __name__ == "__main__":
     images = tf.random.uniform((8, 2, 20, 376, 376))

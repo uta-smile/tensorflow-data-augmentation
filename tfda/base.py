@@ -40,8 +40,6 @@ Tensorflow data augmentation base
 import abc
 from itertools import chain
 
-from tfda.utils import to_tf_bool, to_tf_float
-
 import tensorflow as tf
 
 # Types
@@ -59,27 +57,31 @@ Seqs = Union[Sequence[T], Iterable[T]]
 class TFDABase:
     """Tensorflow data augmentation base."""
 
+    @tf.function
     def __init__(
         self,
         data_key: TFT = "data",
         label_key: TFT = "seg",
-        p_per_sample: TFT = 1,
-        p_per_channel: TFT = 1,
+        p_per_sample: TFT = 1.0,
+        p_per_channel: TFT = 1.0,
         per_channel: TFT = False,
         contrast_range: TFT = (0.75, 1.25),
         multiplier_range: TFT = (0.5, 2),
         preserve_range: TFT = True,
         noise_variance: TFT = (0, 0.1),
+        different_sigma_per_channel: TFT = True,
     ) -> None:
-        self.p_per_sample = to_tf_float(p_per_sample)
-        self.p_per_channel = to_tf_float(p_per_channel)
-        self.per_channel = to_tf_bool(per_channel)
-        self.contrast_range = to_tf_float(contrast_range)
-        self.multiplier_range = to_tf_float(multiplier_range)
-        self.preserve_range = to_tf_bool(preserve_range)
-        self.noise_variance = to_tf_float(noise_variance)
+        self.p_per_sample = p_per_sample
+        self.p_per_channel = p_per_channel
+        self.per_channel = per_channel
+        self.contrast_range = contrast_range
+        self.multiplier_range = multiplier_range
+        self.preserve_range = preserve_range
+        self.noise_variance = noise_variance
+        self.different_sigma_per_channel = different_sigma_per_channel
 
         self.data_key = data_key
+        self.label_key = label_key
 
     @abc.abstractmethod
     def call(self, **data_dict: TFT):
@@ -135,9 +137,6 @@ class Compose(TFDABase):
         for transform in self.transforms:
             data_dict = transform(**data_dict)
         return data_dict
-
-    def __hash__(self):
-        return 0
 
     def __repr__(self) -> str:
         return f"{type(self).__name__} ( {repr(self.transforms)} )"

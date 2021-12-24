@@ -72,7 +72,7 @@ def augment_spatial_helper(sample_id: TFT, patch_size: TFT) -> TFT:
     pass
 
 
-# @tf.function(experimental_follow_type_hints=True)
+@tf.function(experimental_follow_type_hints=True)
 def augment_spatial(
     data: TFT,
     seg: Optional[TFT],
@@ -346,6 +346,28 @@ def augment_spatial(
         [sample_id, patch_size, data, seg, data_result, seg_result],
     )
     return data_result, seg_result
+
+
+@tf.function
+def augment_mirroring(sample_data, sample_seg=None, axes=(0, 1, 2)):
+    if (len(sample_data.shape) != 3) and (len(sample_data.shape) != 4):
+        raise Exception(
+            "Invalid dimension for sample_data and sample_seg. sample_data and sample_seg should be either "
+            "[channels, x, y] or [channels, x, y, z]")
+    if 0 in axes and tf.random.uniform(()) < 0.5:
+        sample_data = sample_data[:, ::-1]
+        if sample_seg is not None:
+            sample_seg = sample_seg[:, ::-1]
+    if 1 in axes and tf.random.uniform(()) < 0.5:
+        sample_data = sample_data[:, :, ::-1]
+        if sample_seg is not None:
+            sample_seg = sample_seg[:, :, ::-1]
+    if 2 in axes and len(sample_data.shape) == 4:
+        if tf.random.uniform(()) < 0.5:
+            sample_data = sample_data[:, :, :, ::-1]
+            if sample_seg is not None:
+                sample_seg = sample_seg[:, :, :, ::-1]
+    return sample_data, sample_seg
 
 
 if __name__ == "__main__":

@@ -36,24 +36,19 @@ license  : GPL-3.0+
 Channel Selection Transforms
 """
 # Standard Library
-from dataclasses import dataclass
-from warnings import warn
-
-from tfda.base import DTFT, TFT, TFDABase
-from tfda.utils import to_tf_bool, to_tf_float, to_tf_int
-
 import tensorflow as tf
 
+# Others
+from tfda.base import DTFT, TFT, TFDABase
+from tfda.utils import TFbT, to_tf_bool, to_tf_float, to_tf_int
 
-@dataclass
+
 class DataChannelSelectionTransform(TFDABase):
     """Selects color channels from the batch and discards the others."""
 
-    channels: TFT
-    data_key: str = "data"
-
-    def __hash__(self) -> int:
-        return 1
+    def __init__(self, channels: TFT, **kws: TFT) -> None:
+        super().__init__(**kws)
+        self.channels = channels
 
     @tf.function
     def call(self, **data_dict: TFT) -> DTFT:
@@ -77,19 +72,18 @@ class DataChannelSelectionTransform(TFDABase):
         return data_dict
 
 
-@dataclass
 class SegChannelSelectionTransform(TFDABase):
     """Segmentations may have more than one channel.
 
     This transform selects segmentation channels.
     """
 
-    channels: TFT
-    label_key: str = "seg"
-    keep_discarded: bool = False
-
-    def __hash__(self) -> int:
-        return 2
+    def __init__(
+        self, channels: TFT, keep_discarded: TFT = TFbT, **kws: TFT
+    ) -> None:
+        super().__init__(**kws)
+        self.channels = channels
+        self.keep_discarded = keep_discarded
 
     @tf.function
     def call(self, **data_dict: TFT) -> DTFT:
@@ -97,11 +91,10 @@ class SegChannelSelectionTransform(TFDABase):
         seg = data_dict.get(self.label_key)
 
         if to_tf_bool(seg is None):
-            warn(
+            tf.get_logger().warn(
                 "You used SegChannelSelectionTransform but "
                 "there is no 'seg' key in your data_dict, returning "
                 "data_dict unmodified",
-                Warning,
             )
         else:
             # TODO: keep_discarded
