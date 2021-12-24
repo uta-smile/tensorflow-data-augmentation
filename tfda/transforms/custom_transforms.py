@@ -97,7 +97,7 @@ class ConvertSegmentationToRegionsTransform(TFDABase):
             region_output = tf.zeros(output_shape, dtype=seg.dtype)
 
             region_output_list = []
-            for b in range(seg_shp[0]):
+            for b in tf.range(seg_shp[0]):
                 region_b_list = []
                 for r, k in enumerate(self.regions.keys()):
                     region_b_r = tf.zeros_like(region_output[b, r])
@@ -151,10 +151,10 @@ class MaskTransform(TFDABase):
             )
         data = data_dict.get(self.data_key)
         data_list = []
-        for b in range(data.shape[0]):
+        for b in tf.range(data.shape[0]):
             mask = seg[b, self.mask_idx_in_seg]
             channel_list = []
-            for c in range(data.shape[1]):
+            for c in tf.range(data.shape[1]):
                 if self.dct_for_where_it_was_used[c]:
                     # data[b, c][mask < 0] = self.set_outside_to
 

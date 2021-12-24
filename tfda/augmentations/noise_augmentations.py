@@ -91,7 +91,7 @@ def augment_gaussian_noise(
 def augment_gaussian_blur(data_sample, sigma_range, per_channel=True, p_per_channel=1):
     sigma = get_range_val(sigma_range)
     channel_list = []
-    for c in range(data_sample.shape[0]):
+    for c in tf.range(data_sample.shape[0]):
         data_sample_channel = data_sample[c]
         if tf.random.uniform(()) <= p_per_channel:
             if per_channel:

@@ -203,7 +203,7 @@ def augment_gamma(
             )
     else:
         channel_list = []
-        for c in range(data_sample.shape[0]):
+        for c in tf.range(data_sample.shape[0]):
             if retain_stats:
                 mn = tf.math.reduce_mean(data_sample[c])
                 sd = tf.math.reduce_std(data_sample[c])

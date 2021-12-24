@@ -108,7 +108,7 @@ class GaussianBlurTransform(TFDABase):
 
     def __call__(self, **data_dict):
         data_list = []
-        for b in range(len(data_dict[self.data_key])):
+        for b in tf.range(len(data_dict[self.data_key])):
             if tf.random.uniform(()) < self.p_per_sample:
                 data_b = augment_gaussian_blur(data_dict[self.data_key][b], self.blur_sigma,
                                                self.different_sigma_per_channel, self.p_per_channel)

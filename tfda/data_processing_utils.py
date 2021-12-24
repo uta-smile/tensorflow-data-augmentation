@@ -360,7 +360,7 @@ class DataAugmentor:
         ) - tf.convert_to_tensor(self.patch_size, dtype=tf.int64)
         case_all_data = tf.concat([image, label], axis=0)
         # assert need_to_pad is None, f'{need_to_pad}, {case_all_data.shape}, {self.basic_generator_patch_size}'
-        for d in range(3):
+        for d in tf.range(3):
             if (
                 need_to_pad[d] + case_all_data.shape[d + 1]
                 < self.basic_generator_patch_size[d]
@@ -522,7 +522,7 @@ class DataAugmentor:
 
         images, segs = [], []
         zero = tf.constant(0, dtype=tf.int64)
-        for i in range(self.batch_size):
+        for i in tf.range(self.batch_size):
             image = tf.io.decode_raw(image_raw[i], tf.as_dtype(tf.float32))
             label = tf.io.decode_raw(label_raw[i], tf.as_dtype(tf.float32))
             original_image, original_label = tf.reshape(
@@ -534,7 +534,7 @@ class DataAugmentor:
             if label.dtype == tf.int64:
                 label = tf.cast(label, dtype=tf.int64)
             class_locations = {}
-            for c in range(class_locations_bytes[i].shape[0]):
+            for c in tf.range(class_locations_bytes[i].shape[0]):
                 class_locations_decode = tf.io.decode_raw(
                     class_locations_bytes[i][c], tf.int64
                 )
@@ -553,7 +553,7 @@ class DataAugmentor:
                 self.patch_size, dtype=tf.int64
             )
             need_to_pad = self.basic_generator_patch_size - self.patch_size
-            for d in range(3):
+            for d in tf.range(3):
                 if (
                     need_to_pad[d]
                     + tf.shape(case_all_data, out_type=tf.int64)[d + 1]
@@ -742,7 +742,7 @@ class DataAugmentor:
 
         images, segs = [], []
         zero = tf.constant(0, dtype=tf.int64)
-        for i in range(self.batch_size):
+        for i in tf.range(self.batch_size):
             image = tf.io.decode_raw(image_raw[i], tf.as_dtype(tf.float32))
             label = tf.io.decode_raw(label_raw[i], tf.as_dtype(tf.float32))
             original_image, original_label = tf.reshape(
@@ -754,7 +754,7 @@ class DataAugmentor:
             if label.dtype == tf.int64:
                 label = tf.cast(label, dtype=tf.int64)
             class_locations = {}
-            for c in range(class_locations_bytes[i].shape[0]):
+            for c in tf.range(class_locations_bytes[i].shape[0]):
                 class_locations_decode = tf.io.decode_raw(
                     class_locations_bytes[i][c], tf.int64
                 )
@@ -862,7 +862,7 @@ class DataAugmentor:
                 self.patch_size, dtype=tf.int64
             )
             need_to_pad = self.basic_generator_patch_size - self.patch_size
-            for d in range(2):
+            for d in tf.range(2):
                 if (
                     tf.shape(need_to_pad)[d] + tf.shape(case_all_data)[d + 1]
                     < self.basic_generator_patch_size[d]
@@ -1189,7 +1189,7 @@ def augment_spatial(
             else:
                 s = seg[sample_id : sample_id + 1]
             if random_crop:
-                # margin = [patch_center_dist_from_border[d] - tf.cast(patch_size[d], dtype=tf.float32) // 2 for d in range(dim)]
+                # margin = [patch_center_dist_from_border[d] - tf.cast(patch_size[d], dtype=tf.float32) // 2 for d in tf.range(dim)]
                 margin = tf.map_fn(
                     lambda d: tf.cast(
                         patch_center_dist_from_border[d], dtype=tf.int64
@@ -1354,7 +1354,7 @@ def map_chunk_coordinates_3d_tmp(img, coords, order=3, chunk_size=4):
     chunk_shape = tf.cast(chunk_shape, tf.int64)
     chunk_index = tf.zeros(tf.rank(coords), dtype=tf.int64)
     total_result = tf.zeros(tf.shape(coords)[1:])
-    for k in range(chunk_size):
+    for k in tf.range(chunk_size):
         cond_to_loop_j = (
             lambda j, chunk_index, chunk_shape, total_result: tf.less(
                 j, tf.constant(chunk_size)
@@ -2010,7 +2010,7 @@ def prepared_for_spline_filter(input, mode, cval):
             )
         elif mode == "nearest":
             padded = input
-            for _ in range(npad):
+            for _ in tf.range(npad):
                 padded = tf.pad(
                     padded,
                     tf.ones((tf.rank(padded), 2), dtype=tf.int64),
@@ -2220,7 +2220,7 @@ def create_zero_centered_coordinate_mesh(shape):
     )
     shape = tf.cast((shape - 1), dtype=tf.float32) / 2.0
     """
-    for d in range(3):
+    for d in tf.range(3):
         coords_d = coords[d] - shape[d]
         coords = update_tf_channel(coords, d, coords_d)
     """

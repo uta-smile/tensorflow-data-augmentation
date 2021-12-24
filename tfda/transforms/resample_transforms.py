@@ -46,7 +46,7 @@ class SimulateLowResolutionTransform(TFDABase):
 
     def __call__(self, **data_dict):
         data_list = []
-        for b in range(len(data_dict[self.data_key])):
+        for b in tf.range(len(data_dict[self.data_key])):
             if tf.random.uniform(()) < self.p_per_sample:
                 data_b = augment_linear_downsampling_scipy(data_dict[self.data_key][b],
                                                            zoom_range=self.zoom_range,
@@ -102,7 +102,7 @@ def augment_linear_downsampling_scipy(data_sample, zoom_range=(0.5, 1), per_chan
     dim = len(shp)  # 3
 
     if channels is None:
-        channels = list(range(data_sample.shape[0]))  # [0, 1]
+        channels = list(tf.range(data_sample.shape[0]))  # [0, 1]
 
     data_sample_c_list = []
     for c in channels:
@@ -115,7 +115,7 @@ def augment_linear_downsampling_scipy(data_sample, zoom_range=(0.5, 1), per_chan
 
             if ignore_axes is not None:  # ignore_axes = 0
                 target_shape_list = []
-                for i in range(dim):
+                for i in tf.range(dim):
                     condition = i in ignore_axes
                     case_true = shp[i]
                     case_false = target_shape[i]

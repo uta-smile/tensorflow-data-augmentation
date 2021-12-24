@@ -181,7 +181,7 @@ class MirrorTransform(TFDABase):
 
         data_list = []
         seg_list = []
-        for b in range(len(data)):
+        for b in tf.range(len(data)):
             sample_seg = None
             if seg is not None:
                 sample_seg = seg[b]
