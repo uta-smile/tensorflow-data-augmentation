@@ -57,7 +57,6 @@ Seqs = Union[Sequence[T], Iterable[T]]
 class TFDABase:
     """Tensorflow data augmentation base."""
 
-    @tf.function
     def __init__(
         self,
         data_key: TFT = "data",
