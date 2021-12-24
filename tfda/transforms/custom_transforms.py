@@ -5,12 +5,11 @@ from tfda.base import TFDABase
 
 
 class Convert3DTo2DTransform(TFDABase):
-    @tf.function
+
     def __call__(self, **data_dict):
         return convert_3d_to_2d_generator(**data_dict)
 
 
-@tf.function
 def convert_3d_to_2d_generator(**data_dict):
     # data_dict_copy = {}
     # shp = data_dict['data'].shape
@@ -35,12 +34,11 @@ def convert_3d_to_2d_generator(**data_dict):
 
 
 class Convert2DTo3DTransform(TFDABase):
-    @tf.function
+
     def __call__(self, **data_dict):
         return convert_2d_to_3d_generator(**data_dict)
 
 
-@tf.function
 def convert_2d_to_3d_generator(**data_dict):
     # data_dict_copy = {}
     # shp = data_dict['orig_shape_data']
@@ -89,7 +87,6 @@ class ConvertSegmentationToRegionsTransform(TFDABase):
         self.seg_key = seg_key
         self.regions = regions
 
-    @tf.function
     def __call__(self, **data_dict):
         seg = data_dict.get(self.seg_key)
         num_regions = len(self.regions)
@@ -146,7 +143,6 @@ class MaskTransform(TFDABase):
         self.set_outside_to = set_outside_to
         self.mask_idx_in_seg = mask_idx_in_seg
 
-    @tf.function
     def __call__(self, **data_dict):
         seg = data_dict.get(self.seg_key)
         if seg is None or seg.shape[1] < self.mask_idx_in_seg:

@@ -50,7 +50,6 @@ class DataChannelSelectionTransform(TFDABase):
         super().__init__(**kws)
         self.channels = channels
 
-    @tf.function
     def call(self, **data_dict: TFT) -> DTFT:
         """Call the transform."""
 
@@ -85,7 +84,6 @@ class SegChannelSelectionTransform(TFDABase):
         self.channels = channels
         self.keep_discarded = keep_discarded
 
-    @tf.function
     def call(self, **data_dict: TFT) -> DTFT:
         """Call the transform."""
         seg = data_dict.get(self.label_key)

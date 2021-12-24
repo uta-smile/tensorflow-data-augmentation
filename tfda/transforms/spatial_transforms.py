@@ -175,7 +175,6 @@ class MirrorTransform(TFDABase):
                 "is now axes=(0, 1, 2). Please adapt your scripts accordingly."
             )
 
-    @tf.function
     def __call__(self, **data_dict):
         data = data_dict.get(self.data_key)
         seg = data_dict.get(self.label_key)
