@@ -310,7 +310,7 @@ def augment_spatial(
     seg_result = None
     if seg is not None:
         seg_result = tf.cond(
-            tf.equal(dim, tf.constant(2)),
+            tf.equal(dim, tf.constant(2, dtype=tf.int64)),
             lambda: tf.zeros(
                 tf.concat(
                     [tf.shape(seg, out_type=tf.int64)[:2], patch_size[:2]],
