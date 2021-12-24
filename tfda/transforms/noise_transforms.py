@@ -106,7 +106,6 @@ class GaussianBlurTransform(TFDABase):
         super().__init__(**kws)
         self.blur_sigma = blur_sigma
 
-    @tf.function
     def __call__(self, **data_dict):
         data_list = []
         for b in range(len(data_dict[self.data_key])):
