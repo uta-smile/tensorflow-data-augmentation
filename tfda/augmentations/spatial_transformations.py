@@ -180,7 +180,7 @@ def augment_spatial(
         # add from here
         if modified_coords:
 
-            d = tf.constant(0)
+            d = tf.constant(0, dtype=tf.int64)
             loop_cond = lambda d, coords: tf.less(d, dim)
 
             def body_fn(d, coords):
@@ -304,6 +304,7 @@ def augment_spatial(
         patch_center_dist_from_border = tf.convert_to_tensor(
             patch_center_dist_from_border, dtype=tf.float32
         )
+    patch_size = tf.cast(patch_size, tf.int64)
     cond_to_loop = lambda sample_id, patch_size, data, seg, data_result, seg_result: tf.less(
         sample_id, sample_num
     )
@@ -327,7 +328,7 @@ def augment_spatial(
         )
 
     data_result = tf.cond(
-        tf.equal(dim, tf.constant(2)),
+        tf.equal(dim, tf.constant(2, dtype=tf.int64)),
         lambda: tf.zeros(
             tf.concat(
                 [tf.shape(data, out_type=tf.int64)[:2], patch_size[:2]], axis=0
