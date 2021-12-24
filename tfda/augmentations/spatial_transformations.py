@@ -306,7 +306,7 @@ def augment_spatial(
     cond_to_loop = lambda sample_id, patch_size, data, seg, data_result, seg_result: tf.less(
         sample_id, sample_num
     )
-    dim = tf.shape(patch_size, dtype=tf.int64)[0]
+    dim = tf.cast(tf.shape(patch_size)[0], tf.int64)
     seg_result = None
     if seg is not None:
         seg_result = tf.cond(
