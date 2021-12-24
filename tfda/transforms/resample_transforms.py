@@ -105,36 +105,32 @@ def augment_linear_downsampling_scipy(data_sample, zoom_range=(0.5, 1), per_chan
     data_sample_c_list = []
     for c in channels:
         if tf.random.uniform(()) < p_per_channel:
-            if per_channel:
-                # zoom = uniform(zoom_range[0], zoom_range[1])
-                zoom = tf.random.uniform((), minval=zoom_range[0], maxval=zoom_range[1])  # 0.8637516095857263
+            # zoom = uniform(zoom_range[0], zoom_range[1])
+            zoom = tf.random.uniform((), minval=zoom_range[0], maxval=zoom_range[1])  # 0.8637516095857263
 
-                target_shape = tf.round(shp * zoom)
-                # target_shape = tf.cast(target_shape, tf.int32)  # [ 17 325 325]
+            target_shape = tf.round(shp * zoom)
+            # target_shape = tf.cast(target_shape, tf.int32)  # [ 17 325 325]
 
-                if ignore_axes is not None:  # ignore_axes = 0
-                    target_shape_list = []
-                    for i in range(dim):
-                        condition = i in ignore_axes
-                        case_true = shp[i]
-                        case_false = target_shape[i]
-                        target_shape_i = tf.where(condition, case_true, case_false)
-                        target_shape_list.append(target_shape_i)
-                    target_shape = tf.stack(target_shape_list)
+            if ignore_axes is not None:  # ignore_axes = 0
+                target_shape_list = []
+                for i in range(dim):
+                    condition = i in ignore_axes
+                    case_true = shp[i]
+                    case_false = target_shape[i]
+                    target_shape_i = tf.where(condition, case_true, case_false)
+                    target_shape_list.append(target_shape_i)
+                target_shape = tf.stack(target_shape_list)
 
             # downsampled = resize(data_sample[c].astype(float), target_shape, order=order_downsample, mode='edge',
             #                      anti_aliasing=False)
             # data_sample[c] = resize(downsampled, shp, order=order_upsample, mode='edge',
             #                         anti_aliasing=False)
             downsampled = volume_resize(data_sample[c], target_shape, method='nearest')
-            print("1", downsampled.shape)
             data_sample_c = volume_resize(downsampled, shp, method='bicubic')
-            print("2", data_sample_c.shape)
         else:
             data_sample_c = data_sample[c]
         data_sample_c_list.append(data_sample_c)
     data_sample = tf.stack(data_sample_c_list)
-    print("111111111111111111")
     return data_sample
 
 
