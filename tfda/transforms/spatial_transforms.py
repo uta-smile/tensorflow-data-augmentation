@@ -149,6 +149,72 @@ class SpatialTransform(TFDABase):
         if seg is not None:
             data_dict[self.label_key] = ret_val[1]
         return data_dict
+    
+   
+class MirrorTransform(AbstractTransform):
+    """ Randomly mirrors data along specified axes. Mirroring is evenly distributed. Probability of mirroring along
+    each axis is 0.5
+
+    Args:
+        axes (tuple of int): axes along which to mirror
+
+    """
+
+    def __init__(self, axes=(0, 1, 2), data_key="data", label_key="seg"):
+        self.data_key = data_key
+        self.label_key = label_key
+        self.axes = axes
+        if max(axes) > 2:
+            raise ValueError("MirrorTransform now takes the axes as the spatial dimensions. What previously was "
+                             "axes=(2, 3, 4) to mirror along all spatial dimensions of a 5d tensor (b, c, x, y, z) "
+                             "is now axes=(0, 1, 2). Please adapt your scripts accordingly.")
+
+    @tf.function
+    def __call__(self, **data_dict):
+        data = data_dict.get(self.data_key)
+        seg = data_dict.get(self.label_key)
+
+        data_list = []
+        seg_list = []
+        for b in range(len(data)):
+            sample_seg = None
+            if seg is not None:
+                sample_seg = seg[b]
+            ret_val = augment_mirroring(data[b], sample_seg, axes=self.axes)
+            data_list.append(ret_val[0])
+            if seg is not None:
+                seg_list.append(ret_val[1])
+
+        data = tf.stack(data_list)
+        data_dict['data'] = data
+        if seg is not None:
+            seg = tf.stack(seg_list)
+            data_dict['seg'] = seg
+
+        return data_dict
+
+
+@tf.function
+def augment_mirroring(sample_data, sample_seg=None, axes=(0, 1, 2)):
+    if (len(sample_data.shape) != 3) and (len(sample_data.shape) != 4):
+        raise Exception(
+            "Invalid dimension for sample_data and sample_seg. sample_data and sample_seg should be either "
+            "[channels, x, y] or [channels, x, y, z]")
+    if 0 in axes and tf.random.uniform(()) < 0.5:
+        sample_data = sample_data[:, ::-1]
+        if sample_seg is not None:
+            sample_seg = sample_seg[:, ::-1]
+    if 1 in axes and tf.random.uniform(()) < 0.5:
+        sample_data = sample_data[:, :, ::-1]
+        if sample_seg is not None:
+            sample_seg = sample_seg[:, :, ::-1]
+    if 2 in axes and len(sample_data.shape) == 4:
+        if tf.random.uniform(()) < 0.5:
+            sample_data = sample_data[:, :, :, ::-1]
+            if sample_seg is not None:
+                sample_seg = sample_seg[:, :, :, ::-1]
+    return sample_data, sample_seg
+
 
 
 if __name__ == "__main__":
@@ -178,3 +244,12 @@ if __name__ == "__main__":
         tf.print(sa(data=data_sample, seg=seg_sample))
 
     print("END")
+    
+    
+    images = tf.random.uniform((8, 2, 20, 376, 376))
+    labels = tf.random.uniform((8, 1, 20, 376, 376), minval=0, maxval=2, dtype=tf.int32)
+    data_dict = {'data': images, 'seg': labels}
+    print(data_dict.keys(), data_dict['data'].shape, data_dict['seg'].shape)  # (8, 2, 20, 376, 376) (8, 1, 20, 376, 376)
+    data_dict = MirrorTransform((0, 1, 2))(**data_dict)
+    print(data_dict.keys(), data_dict['data'].shape, data_dict['seg'].shape)  # (8, 40, 376, 376) (8, 20, 376, 376)
+
