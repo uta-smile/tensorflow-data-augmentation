@@ -96,7 +96,6 @@ def augment_gaussian_blur(data_sample, sigma_range, per_channel=True, p_per_chan
         if tf.random.uniform(()) <= p_per_channel:
             if per_channel:
                 sigma = get_range_val(sigma_range)
-            # ToDo
             data_sample_channel = gaussian_filter(data_sample[c], sigma)
         channel_list.append(data_sample_channel)
     data_sample = tf.stack(channel_list)
