@@ -103,6 +103,51 @@ class ConvertSegmentationToRegionsTransform(AbstractTransform):
             data_dict[self.output_key] = tf.stack(region_output_list)
         return data_dict
 
+    
+ class MaskTransform(AbstractTransform):
+    def __init__(self, dct_for_where_it_was_used, mask_idx_in_seg=1, set_outside_to=0, data_key="data", seg_key="seg"):
+        """
+        data[mask < 0] = 0
+        Sets everything outside the mask to 0. CAREFUL! outside is defined as < 0, not =0 (in the Mask)!!!
+
+        :param dct_for_where_it_was_used:
+        :param mask_idx_in_seg:
+        :param set_outside_to:
+        :param data_key:
+        :param seg_key:
+        """
+        self.dct_for_where_it_was_used = dct_for_where_it_was_used
+        self.seg_key = seg_key
+        self.data_key = data_key
+        self.set_outside_to = set_outside_to
+        self.mask_idx_in_seg = mask_idx_in_seg
+
+    @tf.function
+    def __call__(self, **data_dict):
+        seg = data_dict.get(self.seg_key)
+        if seg is None or seg.shape[1] < self.mask_idx_in_seg:
+            raise Warning("mask not found, seg may be missing or seg[:, mask_idx_in_seg] may not exist")
+        data = data_dict.get(self.data_key)
+        data_list = []
+        for b in range(data.shape[0]):
+            mask = seg[b, self.mask_idx_in_seg]
+            channel_list = []
+            for c in range(data.shape[1]):
+                if self.dct_for_where_it_was_used[c]:
+                    # data[b, c][mask < 0] = self.set_outside_to
+
+                    condition = tf.less(mask, 0)
+                    case_true = tf.zeros_like(data[b, c])  # self.set_outside_to = 0
+                    case_false = data[b, c]
+                    data_b_c = tf.where(condition, case_true, case_false)
+
+                    channel_list.append(data_b_c)
+            data_b = tf.stack(channel_list)
+            data_list.append(data_b)
+
+        data_dict[self.data_key] = tf.stack(data_list)
+        return data_dict
+    
 
 if __name__ == "__main__":
     images = tf.random.uniform((8, 2, 20, 376, 376))
@@ -130,4 +175,13 @@ if __name__ == "__main__":
     data_dict = ConvertSegmentationToRegionsTransform({'0': (1, 2), '1': (2,)}, 'target', 'target')(**data_dict)
     print(data_dict['data'].shape, data_dict['target'].shape)  # (1, 2, 2, 2, 2) (1, 2, 2, 2, 2)
     print(data_dict['target'])
+    
+    images = tf.random.uniform((1, 2, 2, 2, 2))
+    labels = tf.random.uniform((1, 1, 2, 2, 2), minval=0, maxval=2, dtype=tf.int32) - 1
+    data_dict = {'data': images, 'seg': labels}
+    print(data_dict['data'].shape, data_dict['seg'].shape)  # (1, 2, 2, 2, 2) (1, 1, 2, 2, 2)
+    print(data_dict)
+    data_dict = MaskTransform([(0, False), (1, False)], mask_idx_in_seg=0, set_outside_to=0)(**data_dict)
+    print(data_dict['data'].shape, data_dict['seg'].shape)  # (1, 2, 2, 2, 2) (1, 1, 2, 2, 2)
+    print(data_dict)
     
