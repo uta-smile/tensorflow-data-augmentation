@@ -115,6 +115,7 @@ def augment_spatial(
     def augment_per_sample(
         sample_id, patch_size, data, seg, data_result, seg_result
     ):
+        patch_size = tf.cast(patch_size, tf.int64)
         coords = create_zero_centered_coordinate_mesh(patch_size)
         # cshape = tf.concat([[coords.get_shape()[0]], patch_size], 0)
         modified_coords = TFbF
