@@ -87,7 +87,6 @@ class TFDABase:
         """Call the base transform."""
         raise NotImplementedError("Abstract, so implement")
 
-    @tf.function
     def __call__(self, *args, **kws):
         return self.call(*args, **kws)
 
