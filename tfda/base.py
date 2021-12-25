@@ -34,8 +34,6 @@ project  : tfda
 
 Tensorflow data augmentation base
 """
-# from __future__ import annotations
-
 # Standard Library
 import abc
 from itertools import chain
@@ -43,7 +41,7 @@ from itertools import chain
 import tensorflow as tf
 
 # Types
-from typing import Any, Dict, Iterable, Sequence, TypeVar, Union
+from typing import Dict, Iterable, Sequence, TypeVar, Union
 
 TFT = tf.Tensor
 DTFT = Dict[str, tf.Tensor]

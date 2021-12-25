@@ -41,10 +41,10 @@ import tensorflow as tf
 # Others
 from tfda.augmentations.utils import gaussian_filter, get_range_val
 from tfda.base import TFT
-from tfda.utils import TFbF, TFf1, to_tf_bool
+from tfda.utils import TFbF, TFbT, TFf1, to_tf_bool
 
 
-@tf.function
+@tf.function(experimental_follow_type_hints=True)
 def gn_var_fn(noise_variance: TFT) -> tf.Tensor:
     """Gaussian noise variance fn."""
     return tf.cond(
@@ -54,7 +54,7 @@ def gn_var_fn(noise_variance: TFT) -> tf.Tensor:
     )
 
 
-@tf.function
+@tf.function(experimental_follow_type_hints=True)
 def augment_gaussian_noise(
     data_sample: tf.Tensor,
     noise_variance: tf.Tensor = (0, 0.1),
@@ -87,19 +87,44 @@ def augment_gaussian_noise(
     )
 
 
-@tf.function
-def augment_gaussian_blur(data_sample, sigma_range, per_channel=True, p_per_channel=1):
+@tf.function(experimental_follow_type_hints=True)
+def augment_gaussian_blur(
+    data_sample: TFT,
+    sigma_range: TFT,
+    per_channel: TFT = TFbT,
+    p_per_channel: TFT = 1.0,
+    # TODO: not used
+    different_sigma_per_axis: TFT = TFbF,
+    p_isotropic: TFT = 0.0,
+):
     sigma = get_range_val(sigma_range)
-    channel_list = []
-    for c in tf.range(data_sample.shape[0]):
-        data_sample_channel = data_sample[c]
-        if tf.random.uniform(()) <= p_per_channel:
-            if per_channel:
-                sigma = get_range_val(sigma_range)
-            data_sample_channel = gaussian_filter(data_sample[c], sigma)
-        channel_list.append(data_sample_channel)
-    data_sample = tf.stack(channel_list)
-    return data_sample
+
+    return tf.map_fn(
+        lambda x: tf.cond(
+            tf.less(tf.random.uniform(()), p_per_channel),
+            lambda: gaussian_filter(
+                x,
+                sigma=tf.cond(
+                    per_channel,
+                    lambda: get_range_val(sigma_range),
+                    lambda: sigma,
+                ),
+            ),
+            lambda: x,
+        ),
+        data_sample,
+    )
+
+    # channel_list = []
+    # for c in tf.range(data_sample.shape[0]):
+    #     data_sample_channel = data_sample[c]
+    #     if tf.random.uniform(()) <= p_per_channel:
+    #         if per_channel:
+    #             sigma = get_range_val(sigma_range)
+    #         data_sample_channel = gaussian_filter(data_sample[c], sigma)
+    #     channel_list.append(data_sample_channel)
+    # data_sample = tf.stack(channel_list)
+    # return data_sample
 
 
 if __name__ == "__main__":
