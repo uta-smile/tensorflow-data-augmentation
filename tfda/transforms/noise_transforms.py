@@ -40,7 +40,7 @@ import tensorflow as tf
 # Others
 from tfda.augmentations.noise_augmentations import (
     augment_gaussian_blur,
-    augment_gaussian_noise
+    augment_gaussian_noise,
 )
 from tfda.augmentations.utils import gaussian_filter
 from tfda.base import DTFT, TFT, TFDABase
@@ -101,23 +101,34 @@ class GaussianNoiseTransform(TFDABase):
 
 
 class GaussianBlurTransform(TFDABase):
-
-    def __init__(self, blur_sigma: TFT =(1, 5), **kws: TFT) -> None:
+    def __init__(self, blur_sigma: TFT = (1, 5), **kws: TFT) -> None:
         super().__init__(**kws)
         self.blur_sigma = blur_sigma
 
-    def __call__(self, **data_dict):
-        data_list = []
-        for b in tf.range(len(data_dict[self.data_key])):
-            if tf.random.uniform(()) < self.p_per_sample:
-                data_b = augment_gaussian_blur(data_dict[self.data_key][b], self.blur_sigma,
-                                               self.different_sigma_per_channel, self.p_per_channel)
-                data_list.append(data_b)
-            else:
-                data_list.append(data_dict[self.data_key][b])
-        data_dict[self.data_key] = tf.stack(data_list)
+    def call(self, **data_dict: TFT) -> DTFT:
+        data_dict[self.data_key] = tf.map_fn(
+            lambda x: tf.cond(
+                tf.less(tf.random.uniform(()), self.p_per_sample),
+                lambda: augment_gaussian_blur(
+                    x,
+                    self.blur_sigma,
+                    self.different_sigma_per_channel,
+                    self.p_per_channel,
+                ),
+                lambda: x,
+            ),
+            data_dict[self.data_key],
+        )
+        # data_list = []
+        # for b in tf.range(len(data_dict[self.data_key])):
+        #     if tf.random.uniform(()) < self.p_per_sample:
+        #         data_b = augment_gaussian_blur(data_dict[self.data_key][b], self.blur_sigma,
+        #                                        self.different_sigma_per_channel, self.p_per_channel)
+        #         data_list.append(data_b)
+        #     else:
+        #         data_list.append(data_dict[self.data_key][b])
+        # data_dict[self.data_key] = tf.stack(data_list)
         return data_dict
-
 
 
 if __name__ == "__main__":
@@ -139,11 +150,20 @@ if __name__ == "__main__":
 
         tf.print(t(data=dataset)["data"].shape)
 
-
         images = tf.random.uniform((8, 2, 20, 376, 376))
-        labels = tf.random.uniform((8, 1, 20, 376, 376), minval=0, maxval=2, dtype=tf.int32)
-        data_dict = {'data': images, 'seg': labels}
-        print(data_dict.keys(), data_dict['data'].shape, data_dict['seg'].shape)  # (8, 2, 20, 376, 376) (8, 1, 20, 376, 376)
-        data_dict = GaussianBlurTransform((0.5, 1.), different_sigma_per_channel=True, p_per_sample=0.2,
-                                          p_per_channel=0.5)(**data_dict)
-        print(data_dict.keys(), data_dict['data'].shape, data_dict['seg'].shape)  # (8, 40, 376, 376) (8, 20, 376, 376)
+        labels = tf.random.uniform(
+            (8, 1, 20, 376, 376), minval=0, maxval=2, dtype=tf.int32
+        )
+        data_dict = {"data": images, "seg": labels}
+        print(
+            data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
+        )  # (8, 2, 20, 376, 376) (8, 1, 20, 376, 376)
+        data_dict = GaussianBlurTransform(
+            (0.5, 1.0),
+            different_sigma_per_channel=True,
+            p_per_sample=0.2,
+            p_per_channel=0.5,
+        )(**data_dict)
+        print(
+            data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
+        )  # (8, 40, 376, 376) (8, 20, 376, 376)
