@@ -94,8 +94,8 @@ def augment_linear_downsampling_scipy(data_sample, zoom_range=(0.5, 1), per_chan
         ignore_axes: tuple/list
 
     '''
-    if not isinstance(zoom_range, (list, tuple)):
-        zoom_range = [zoom_range]
+    # if not isinstance(zoom_range, (list, tuple)):
+    #     zoom_range = [zoom_range]
     # data_sample.shape = [2 20 376 376]
     shp = data_sample.shape[1:]  # [ 20 376 376]
     shp = tf.cast(shp, tf.float32)
