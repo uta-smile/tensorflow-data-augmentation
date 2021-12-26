@@ -230,21 +230,22 @@ class GammaTransform(TFDABase):
         self.invert_image = invert_image
         self.per_channel = per_channel
 
-    def __call__(self, **data_dict):
-        data_list = []
-        for b in tf.range(len(data_dict[self.data_key])):
-            if tf.random.uniform(()) < self.p_per_sample:
-                data_b = augment_gamma(
-                    data_dict[self.data_key][b],
+    def call(self, **data_dict: TFT) -> DTFT:
+        """Call the transform."""
+        data_dict[self.data_key] = tf.map_fn(
+            lambda x: tf.cond(
+                tf.random.uniform(()) < self.p_per_sample,
+                lambda: augment_gamma(
+                    x,
                     self.gamma_range,
                     self.invert_image,
                     per_channel=self.per_channel,
                     retain_stats=self.retain_stats,
-                )
-            else:
-                data_b = data_dict[self.data_key][b]
-            data_list.append(data_b)
-        data_dict[self.data_key] = tf.stack(data_list)
+                ),
+                lambda: x,
+            ),
+            data_dict[self.data_key],
+        )
         return data_dict
 
 

@@ -35,8 +35,8 @@ license  : GPL-3.0+
 
 Color Augmentation
 """
-from tfda.utils import TFbT, TFf1, to_tf_bool
-
+from tfda.utils import TFbF, TFbT, TFf1, to_tf_bool
+from tfda.base import TFT
 import tensorflow as tf
 
 
@@ -163,26 +163,18 @@ def augment_brightness_multiplicative(
 
 
 @tf.function(experimental_follow_type_hints=True)
-def augment_gamma(
-    data_sample,
-    gamma_range=(0.5, 2),
-    invert_image=False,
-    epsilon=1e-7,
-    per_channel=True,
-    retain_stats=True,
-):
-    if invert_image:
-        data_sample = -data_sample
-    if not per_channel:
-        if retain_stats:
-            mn = tf.math.reduce_mean(data_sample)
-            sd = tf.math.reduce_std(data_sample)
-        if tf.random.uniform(()) < 0.5 and gamma_range[0] < 1:
-            gamma = tf.random.uniform((), minval=gamma_range[0], maxval=1)
-        else:
-            gamma = tf.random.uniform(
-                (), minval=max(gamma_range[0], 1), maxval=gamma_range[1]
-            )
+def augment_gamma_help(
+    data_sample: TFT,
+    gamma_range: TFT,
+    epsilon: TFT,
+    retain_stats: TFT,
+) -> TFT:
+    if tf.random.uniform(()) < 0.5 and gamma_range[0] < 1:
+        gamma = tf.random.uniform((), minval=gamma_range[0], maxval=1)
+    else:
+        gamma = tf.random.uniform(
+            (), minval=tf.maximum(gamma_range[0], 1), maxval=gamma_range[1]
+        )
         minm = tf.math.reduce_min(data_sample)
         rnge = tf.math.reduce_max(data_sample) - minm
         data_sample = (
@@ -196,53 +188,37 @@ def augment_gamma(
             * rnge
             + minm
         )
-        if retain_stats:
-            data_sample = data_sample - tf.math.reduce_mean(data_sample) + mn
-            data_sample = (
-                data_sample / (tf.math.reduce_std(data_sample) + 1e-8) * sd
-            )
+    if retain_stats:
+        mn = tf.math.reduce_mean(data_sample)
+        sd = tf.math.reduce_std(data_sample)
+        data_sample = data_sample - tf.math.reduce_mean(data_sample) + mn
+        data_sample = (
+            data_sample / (tf.math.reduce_std(data_sample) + 1e-8) * sd
+        )
+    return data_sample
+
+
+@tf.function(experimental_follow_type_hints=True)
+def augment_gamma(
+    data_sample: TFT,
+    gamma_range: TFT = (0.5, 2),
+    invert_image: TFT = TFbF,
+    epsilon: TFT = 1e-7,
+    per_channel: TFT = TFbT,
+    retain_stats: TFT = TFbT,
+):
+    if invert_image:
+        data_sample = -data_sample
+    if not per_channel:
+        data_sample = augment_gamma_help(data_sample, gamma_range, epsilon, retain_stats)
     else:
-        channel_list = []
-        for c in tf.range(data_sample.shape[0]):
-            if retain_stats:
-                mn = tf.math.reduce_mean(data_sample[c])
-                sd = tf.math.reduce_std(data_sample[c])
-            if tf.random.uniform(()) < 0.5 and gamma_range[0] < 1:
-                gamma = tf.random.uniform((), minval=gamma_range[0], maxval=1)
-            else:
-                gamma = tf.random.uniform(
-                    (), minval=max(gamma_range[0], 1), maxval=gamma_range[1]
-                )
-            minm = tf.math.reduce_min(data_sample[c])
-            rnge = tf.math.reduce_max(data_sample[c]) - minm
-            data_sample_channel = (
-                tf.math.pow(
-                    (
-                        (data_sample[c] - minm)
-                        / tf.cast(rnge + epsilon, dtype=tf.float32)
-                    ),
-                    gamma,
-                )
-                * tf.cast(rnge + epsilon, dtype=tf.float32)
-                + minm
-            )
-            if retain_stats:
-                data_sample_channel = (
-                    data_sample_channel
-                    - tf.math.reduce_mean(data_sample_channel)
-                    + mn
-                )
-                data_sample_channel = (
-                    data_sample_channel
-                    / (tf.math.reduce_std(data_sample_channel) + 1e-8)
-                    * sd
-                )
-            channel_list.append(data_sample_channel)
-        data_sample = tf.stack(channel_list)
+        data_sample = tf.map_fn(
+            lambda ds: augment_gamma_help(ds, gamma_range, epsilon, retain_stats),
+            data_sample
+        )
     if invert_image:
         data_sample = -data_sample
     return data_sample
-
 
 
 if __name__ == "__main__":
