@@ -162,7 +162,7 @@ def augment_brightness_multiplicative(
     return data_sample
 
 
-@tf.function
+@tf.function(experimental_follow_type_hints=True)
 def augment_gamma(
     data_sample,
     gamma_range=(0.5, 2),
