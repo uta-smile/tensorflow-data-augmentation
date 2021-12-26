@@ -2325,9 +2325,27 @@ def cubic_spline_interpolation_1d_2(data, coords):
     B = 2 * (h[:n-2] + h[1: n-1])
     C = h[1:n-1]
     D = 6 * ((data[2: n] - data[1: n-1]) / h[1: n-1] - (data[1: n-1] - data[:n-2]) / h[:n-2])
+    A = tf.linalg.diag(A)
+    B = tf.linalg.diag(B)
+    C = tf.linalg.diag(C)
+    D = tf.reshape(D, (-1, 1))
+    zeros = tf.zeros([n-2, 1])
+    A0 = tf.concat([A, zeros, zeros], axis=1)
+    B0 = tf.concat([zeros, B, zeros], axis=1)
+    C0 = tf.concat([zeros, zeros, C], axis=1)
+    MAT = A0 + B0 + C0
+    D = tf.concat([tf.constant([[0.]]), D, tf.constant([[0.]])], axis=0)
+    zeros = tf.zeros([n])
+    one1 = tf.tensor_scatter_nd_update(zeros, [[0]], [1.])
+    one2 = tf.tensor_scatter_nd_update(zeros, [[n-1]], [1])
+    MAT = tf.concat([one1[tf.newaxis,], MAT, one2[tf.newaxis]], axis=0)
+    X = tf.linalg.solve(MAT, D)
+    M = X[:,0]
+    '''
     X = thomas_algorithm(A, B, C, D)
     M = X[0:n-2]
     M = tf.concat([tf.constant([0.]), M, tf.constant([0.])], axis=0)
+    '''
     a = data[:n-1]
     b = (data[1: n] - data[0: n-1]) / h[0: n-1] - (2 * h[0: n-1] * M[0: n-1] + h[0: n-1] * M[1: n]) / 6
     c = M[0: n-1] / 2
@@ -2412,15 +2430,15 @@ def main():
     coords = coords.squeeze()
     print(sci_pred_y)
 
-    plt.subplot(4, 1, 1)
-    plt.plot(x, y)
-    plt.subplot(4, 1, 2)
-    plt.plot(coords, pred_y)
-    plt.subplot(4, 1, 3)
-    plt.plot(coords, pred_y2)
-    plt.subplot(4, 1, 4)
-    plt.plot(coords, sci_pred_y)
-    plt.show()
+    #plt.subplot(4, 1, 1)
+    #plt.plot(x, y)
+    #plt.subplot(4, 1, 2)
+    #plt.plot(coords, pred_y)
+    #plt.subplot(4, 1, 3)
+    #plt.plot(coords, pred_y2)
+    #plt.subplot(4, 1, 4)
+    #plt.plot(coords, sci_pred_y)
+    #plt.show()
 
     print(np.abs(sci_pred_y, pred_y))
     print(tf_time, tf_time2, sci_time)
@@ -2428,7 +2446,7 @@ def main():
     print(tf_time2 / sci_time)
     '''
 
-    '''
+    
     # cublic spline intep 2d test here
     a = tf.range(73 * 80)
     a = tf.reshape(a, (73, 80))
@@ -2440,22 +2458,22 @@ def main():
     tf_time = tf_end - tf_start
     # print(result)
     print(tf_time)
-    '''
-
-
     
+
+
+    '''
     # cubic spline intep 3d test here
     a = tf.range(73 * 80 * 64)
     a = tf.reshape(a, (73, 80, 64))
     a = tf.cast(a, tf.float32)
-    coords = tf.random.uniform([40 * 56 * 40, 3], minval=0, maxval=63)
+    coords = tf.random.uniform([4 * 5 * 40, 3], minval=0, maxval=63)
     tf_start = time.time()
     result = cubic_spline_interpolation_3d(a, coords)
     tf_end = time.time()
     tf_time = tf_end - tf_start
     # print(result)
     print(tf_time)
-    
+    '''
 
 
 if __name__ == "__main__":
