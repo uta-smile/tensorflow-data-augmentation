@@ -35,12 +35,13 @@ license  : GPL-3.0+
 
 Noise Transforms
 """
+
 import tensorflow as tf
 
 # Others
 from tfda.augmentations.noise_augmentations import (
     augment_gaussian_blur,
-    augment_gaussian_noise
+    augment_gaussian_noise,
 )
 from tfda.base import DTFT, TFT, TFDABase
 from tfda.utils import TFbF, TFbT
@@ -129,6 +130,7 @@ class GaussianBlurTransform(TFDABase):
         return data_dict
 
 
+
 if __name__ == "__main__":
     with tf.device("/CPU:0"):
         dataset = next(
@@ -150,18 +152,31 @@ if __name__ == "__main__":
 
         images = tf.random.uniform((8, 2, 20, 376, 376))
         labels = tf.random.uniform(
-            (8, 1, 20, 376, 376), minval=0, maxval=2, dtype=tf.int32
+            (8, 1, 20, 376, 376), minval=0, maxval=2, dtype=tf.float32
         )
         data_dict = {"data": images, "seg": labels}
         tf.print(
             data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
         )  # (8, 2, 20, 376, 376) (8, 1, 20, 376, 376)
-        data_dict = GaussianBlurTransform(
+
+        gbt = GaussianBlurTransform(
             (0.5, 1.0),
             different_sigma_per_channel=TFbT,
             p_per_sample=0.2,
             p_per_channel=0.5,
-        )(**data_dict)
+        )
+
+        # Standard Library
+        import time
+
+        print(time.time())
+        data_dict = gbt(seg=images, data=labels)
         tf.print(
             data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
         )  # (8, 40, 376, 376) (8, 20, 376, 376)
+        print(time.time())
+        data_dict = gbt(data=images, seg=labels)
+        tf.print(
+            data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
+        )  # (8, 40, 376, 376) (8, 20, 376, 376)
+        print(time.time())

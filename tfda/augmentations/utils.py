@@ -39,7 +39,7 @@ Augmentation Utils
 import tensorflow as tf
 
 # Others
-tf.debugging.set_log_device_placement(True)
+# tf.debugging.set_log_device_placement(True)
 from tfda.base import TFT
 from tfda.utils import TFbF, TFbT, TFf0, to_tf_bool, to_tf_float, to_tf_int
 
@@ -289,7 +289,7 @@ if __name__ == "__main__":
     # Others
     import scipy.ndimage.filters as sf
 
-    patch_size = tf.constant([10, 12, 14])
+    patch_size = tf.constant([20, 376, 376])
 
     with tf.device("/CPU:0"):
         coords = create_zero_centered_coordinate_mesh(patch_size)
@@ -306,8 +306,8 @@ if __name__ == "__main__":
         # s = xs.shape
         # tf.print(xs.shape)
         x = gaussian_filter(xs, 5, "reflect")
-        x_ = sf.gaussian_filter(xs, 5, mode="reflect")
         tf.print("\n\n", x[0][0], "\n", x.shape, x[0].shape)
+        x_ = sf.gaussian_filter(xs, 5, mode="reflect")
         tf.print("----\n", x_[0][0], "\n", x_.shape, x_[0].shape)
 
         tf.print("----------")
