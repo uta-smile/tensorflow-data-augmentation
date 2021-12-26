@@ -8,6 +8,7 @@
 import math
 import os
 import pickle
+import time
 from copy import deepcopy
 
 import tensorflow as tf
@@ -2274,8 +2275,97 @@ def update_tf_channel(data, idx, update_value):
     new_data = tf.concat([data[:idx], update_value, data[idx + 1 :]], axis=0)
     return new_data
 
+@tf.function
+def cubic_spline_interpolation_3d(data, coords):
+    x, y = tf.range(tf.shape(data)[0]), tf.range(tf.shape(coords)[0])
+    x, y = tf.cast(x, tf.float32), tf.cast(y, tf.float32)
+    # cubic_spline_interpolation_2d(data[0], coords[:, 1:])
+    interpolate_2d_x = tf.map_fn(lambda i: cubic_spline_interpolation_2d(data[i], coords[:, 1:]), elems=tf.range(tf.shape(x)[0]), dtype=tf.float32)
+    result = tf.map_fn(lambda i: cubic_spline_interpolation_1d_2(interpolate_2d_x[:, i], coords[i, 0:1]), elems=tf.range(tf.shape(y)[0]), dtype=tf.float32)
+    return result[:,0]
+
+@tf.function
+def cubic_spline_interpolation_2d(data, coords):
+    # x, y = tf.meshgrid(tf.range(tf.shape(data)[0]), tf.range(tf.shape(data)[1]), indexing='ij')
+    x, y = tf.range(tf.shape(data)[0]), tf.range(tf.shape(coords)[0])
+    x, y = tf.cast(x, tf.float32), tf.cast(y, tf.float32)
+    # cubic_spline_interpolation_1d_2(data[0], coords[:, 1])
+    interpolate_1d_x = tf.map_fn(lambda i: cubic_spline_interpolation_1d_2(data[i], coords[:, 1]), elems=tf.range(tf.shape(x)[0]), dtype=tf.float32)
+    # cubic_spline_interpolation_1d_2(interpolate_1d_x[:, 0], coords[0, 0:1])
+    result = tf.map_fn(lambda i: cubic_spline_interpolation_1d_2(interpolate_1d_x[:, i], coords[i, 0:1]), elems=tf.range(tf.shape(y)[0]), dtype=tf.float32)
+    return result[:,0]
+
+@tf.function
+def cubic_spline_interpolation_1d(data, coords):
+    x = tf.range(tf.shape(data)[0])
+    x = tf.cast(x, tf.float32)
+    h = tf.map_fn(lambda i: x[i+1] - x[i], elems=tf.range(tf.shape(x)[0] - 1), dtype=tf.float32)
+    A = tf.map_fn(lambda i: h[i], elems=tf.range(tf.shape(x)[0] - 2), dtype=tf.float32)
+    B = tf.map_fn(lambda i: 2 * (h[i] + h[i+1]), elems=tf.range(tf.shape(x)[0] - 2), dtype=tf.float32)
+    C = tf.map_fn(lambda i: h[i+1], elems=tf.range(tf.shape(x)[0] - 2), dtype=tf.float32)
+    D = tf.map_fn(lambda i: 6 * ((data[i+2] - data[i+1]) / h[i+1] - (data[i+1] - data[i]) / h[i]), elems=tf.range(tf.shape(x)[0] - 2), dtype=tf.float32)
+    X = thomas_algorithm(A, B, C, D)
+    M = tf.map_fn(lambda i: X[i-1], elems=tf.range(1, tf.shape(x)[0]-1), dtype=tf.float32)
+    M = tf.concat([tf.constant([0.]), M, tf.constant([0.])], axis=0)
+    a = tf.map_fn(lambda i: data[i], elems=tf.range(tf.shape(x)[0]-1), dtype=tf.float32)
+    b = tf.map_fn(lambda i: (data[i+1] - data[i]) / h[i] - (2 * h[i] * M[i] + h[i] * M[i+1]) / 6, elems=tf.range(tf.shape(x)[0]-1), dtype=tf.float32)
+    c = tf.map_fn(lambda i: M[i] / 2, elems=tf.range(tf.shape(x)[0]-1), dtype=tf.float32)
+    d = tf.map_fn(lambda i: (M[i+1] - M[i]) / (6 * h[i]), elems=tf.range(tf.shape(x)[0]-1), dtype=tf.float32)
+    splines = tf.cast(tf.floor(coords), tf.int32)
+    result = tf.map_fn(lambda i: a[splines[i]] + b[splines[i]] * (coords[i] - tf.cast(splines[i], tf.float32)) + c[splines[i]] * tf.pow((coords[i] - tf.cast(splines[i], tf.float32)), 2) + d[splines[i]] * tf.pow((coords[i] - tf.cast(splines[i], tf.float32)), 3), elems=tf.range(tf.shape(coords)[0]), dtype=tf.float32)
+    return result
+
+@tf.function
+def cubic_spline_interpolation_1d_2(data, coords):
+    x = tf.range(tf.shape(data)[0])
+    x = tf.cast(x, tf.float32)
+    n = tf.shape(x)[0]
+    h = x[1:n] - x[:n-1]
+    A = h[:n-2]
+    B = 2 * (h[:n-2] + h[1: n-1])
+    C = h[1:n-1]
+    D = 6 * ((data[2: n] - data[1: n-1]) / h[1: n-1] - (data[1: n-1] - data[:n-2]) / h[:n-2])
+    X = thomas_algorithm(A, B, C, D)
+    M = X[0:n-2]
+    M = tf.concat([tf.constant([0.]), M, tf.constant([0.])], axis=0)
+    a = data[:n-1]
+    b = (data[1: n] - data[0: n-1]) / h[0: n-1] - (2 * h[0: n-1] * M[0: n-1] + h[0: n-1] * M[1: n]) / 6
+    c = M[0: n-1] / 2
+    d = (M[1: n] - M[0: n-1]) / (6 * h[0: n-1])
+    coeff = tf.transpose(tf.concat([a[tf.newaxis], b[tf.newaxis], c[tf.newaxis], d[tf.newaxis]], axis=0))
+    splines = tf.floor(coords)
+    x_ = coords - splines
+    splines = tf.cast(splines, tf.int32)
+    coeff = tf.gather(coeff, splines, axis=0)
+    # result = tf.map_fn(lambda i: a[splines[i]] + b[splines[i]] * (coords[i] - tf.cast(splines[i], tf.float32)) + c[splines[i]] * tf.pow((coords[i] - tf.cast(splines[i], tf.float32)), 2) + d[splines[i]] * tf.pow((coords[i] - tf.cast(splines[i], tf.float32)), 3), elems=tf.range(tf.shape(coords)[0]), dtype=tf.float32)
+    result = coeff[:, 0] + coeff[:, 1] * x_ + coeff[:, 2] * x_ * x_ + coeff[:, 3] * x_ * x_ * x_
+    return result
+
+@tf.function
+def thomas_algorithm(A, B, C, D):
+    n = tf.shape(A)[0]
+    C = tf.tensor_scatter_nd_update(C, [[0]], [C[0] / B[0]])
+    D = tf.tensor_scatter_nd_update(D, [[0]], [D[0] / B[0]])
+    X_last = D[n-1]
+    i = n - 2
+    '''
+    cond_to_loop = lambda i, X: tf.greater_equal(i, tf.constant(0))
+    # body_fn = lambda i, X: i - 1, tf.tensor_scatter_nd_update(X, [[i]], [D[i] - C[i] * X[i+1]])
+
+    @tf.function
+    def body_fn(i, X):
+        X = tf.tensor_scatter_nd_update(X, [[i]], [D[i] - C[i] * X[i+1]])
+        i = i - 1
+        return i, X
+    _, X = tf.while_loop(cond_to_loop, body_fn, loop_vars=[i, X])
+    '''
+    X = tf.scan(lambda a, i: D[i] - C[i] * a, elems=tf.range(0, n-1, 1), initializer=X_last)
+    X = tf.concat([X, [X_last]], axis=0)
+    return X
+
 
 def main():
+    '''
     # patch_size = [10, 20, 10]
     patch_size = [40, 56, 40]
     patch_center_dist_from_border = [30, 30, 30]
@@ -2290,6 +2380,82 @@ def main():
     print(seg)
     print(data.shape)
     print(seg.shape)
+    '''
+
+    '''
+    # cubic spline intep 1d test here
+    x = tf.range(50)
+    x = tf.cast(x, tf.float32)
+    y = tf.math.sin(x)
+    coords = tf.range(0, 49, 0.1)
+    coords = tf.cast(coords, tf.float32)
+    tf_start = time.time()
+    pred_y = cubic_spline_interpolation_1d(y, coords)
+    tf_end = time.time()
+    tf_time = tf_end - tf_start
+    print(y)
+    print(pred_y)
+    tf_start2 = time.time()
+    pred_y2 = cubic_spline_interpolation_1d_2(y, coords)
+    tf_end2 = time.time()
+    tf_time2 = tf_end2 - tf_start2
+    print(pred_y2)
+    y, pred_y = y.numpy(), pred_y.numpy()
+    pred_y2 = pred_y2.numpy()
+    coords = coords.numpy()
+    coords = coords.reshape(1, -1)
+    sci_start = time.time()
+    sci_pred_y = ndimage.map_coordinates(y, coords, order=3)
+    var = np.abs(sci_pred_y - pred_y2)
+    sci_end = time.time()
+    sci_time = sci_end - sci_start
+    coords = coords.squeeze()
+    print(sci_pred_y)
+
+    plt.subplot(4, 1, 1)
+    plt.plot(x, y)
+    plt.subplot(4, 1, 2)
+    plt.plot(coords, pred_y)
+    plt.subplot(4, 1, 3)
+    plt.plot(coords, pred_y2)
+    plt.subplot(4, 1, 4)
+    plt.plot(coords, sci_pred_y)
+    plt.show()
+
+    print(np.abs(sci_pred_y, pred_y))
+    print(tf_time, tf_time2, sci_time)
+    print(var)
+    print(tf_time2 / sci_time)
+    '''
+
+    '''
+    # cublic spline intep 2d test here
+    a = tf.range(73 * 80)
+    a = tf.reshape(a, (73, 80))
+    a = tf.cast(a, tf.float32)
+    coords = tf.random.uniform([40 * 56, 2], minval=0, maxval=72)
+    tf_start = time.time()
+    result = cubic_spline_interpolation_2d(a, coords)
+    tf_end = time.time()
+    tf_time = tf_end - tf_start
+    # print(result)
+    print(tf_time)
+    '''
+
+
+    
+    # cubic spline intep 3d test here
+    a = tf.range(73 * 80 * 64)
+    a = tf.reshape(a, (73, 80, 64))
+    a = tf.cast(a, tf.float32)
+    coords = tf.random.uniform([40 * 56 * 40, 3], minval=0, maxval=63)
+    tf_start = time.time()
+    result = cubic_spline_interpolation_3d(a, coords)
+    tf_end = time.time()
+    tf_time = tf_end - tf_start
+    # print(result)
+    print(tf_time)
+    
 
 
 if __name__ == "__main__":
