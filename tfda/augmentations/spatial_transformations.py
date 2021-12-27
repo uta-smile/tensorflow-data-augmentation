@@ -358,11 +358,12 @@ def augment_spatial(
 
 @tf.function
 def augment_mirroring(sample_data: TFT, sample_seg: TFT = nan, axes: Tuple[int, ...] = (0, 1, 2)) -> TFT :
-    if (tf.rank(sample_data) != 3) and (tf.rank(sample_data) != 4):
-        tf.get_logger().exception(
-            "Invalid dimension for sample_data and sample_seg. sample_data and sample_seg should be either "
-            "[channels, x, y] or [channels, x, y, z]")
-        return sample_data, sample_seg
+    # if (tf.rank(sample_data) != 3) and (tf.rank(sample_data) != 4):
+    #     tf.get_logger().warn(
+    #         "Invalid dimension for sample_data and sample_seg. sample_data and sample_seg should be either "
+    #         "[channels, x, y] or [channels, x, y, z]\n"
+    #         "return raw")
+    #     return sample_data, sample_seg
     if 0 in axes and tf.random.uniform(()) < 0.5:
         sample_data = sample_data[:, ::-1]
         if not tf.reduce_any(tf.math.is_nan(sample_seg)):
