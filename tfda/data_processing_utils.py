@@ -239,6 +239,11 @@ class DataAugmentor:
         with open(self.plans_file, "rb") as f:
             self.plans = pickle.load(f)
 
+    def transform_fn(self, dataset, input_context):
+        dataset = dataset.batch(self.batch_size, drop_remainder=True)
+        dataset = dataset.map(self.formalize_data_3d, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+        return dataset
+
     def process_plans(self, plans):
         if self.stage is None:
             assert len(list(plans["plans_per_stage"].keys())) == 1, (
