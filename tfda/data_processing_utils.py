@@ -718,7 +718,8 @@ class DataAugmentor:
         # assert data is None, f'{images}'
         data["images"] = images
         data["labels"] = segs
-        return data
+        # return data
+        return images, segs
 
 
 class TestSpatialTransform(tf.keras.layers.Layer):

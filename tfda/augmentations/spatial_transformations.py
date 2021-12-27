@@ -101,6 +101,11 @@ def augment_spatial(
     p_rot_per_axis: TFT = TFf1,
     p_independent_scale_per_axis: TFT = TFf1,
 ) -> TFT:
+    p_el_per_sample = tf.cast(p_el_per_sample, tf.float32)
+    p_scale_per_sample = tf.cast(p_scale_per_sample, tf.float32)
+    p_rot_per_axis = tf.cast(p_rot_per_axis, tf.float32)
+    p_rot_per_sample = tf.cast(p_rot_per_sample, tf.float32)
+    p_independent_scale_per_axis = tf.cast(p_independent_scale_per_axis, tf.float32)
     # start here
     dim = tf.shape(patch_size)[0]
 
