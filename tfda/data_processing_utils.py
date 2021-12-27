@@ -1284,8 +1284,8 @@ def map_coordinates_seg(seg, cl, coords, result, order):
     # order = tf.cast(order, tf.int64)
     new_seg = tf.cond(
         tf.equal(tf.rank(seg), tf.constant(3)),
-        lambda: map_chunk_coordinates_3d_2(seg, coords, order),
-        lambda: map_chunk_coordinates_2d(seg, coords, order),
+        lambda: map_chunk_coordinates_3d(seg, coords, order),
+        lambda: map_coordinates_2d(seg, coords, order),
     )
     indices = tf.where(tf.greater_equal(new_seg, tf.constant(0.5)))
     result = tf.tensor_scatter_nd_update(
@@ -1306,8 +1306,8 @@ def map_coordinates_img(img, coords, order=3):
     # return tf.cond(tf.equal(tf.rank(img), tf.constant(3)), lambda: map_coordinates_3d(img, coords, order), lambda: map_coordinates_2d(img, coords, order))
     return tf.cond(
         tf.equal(tf.rank(img), tf.constant(3)),
-        lambda: map_chunk_coordinates_3d_2(img, coords, order),
-        lambda: map_chunk_coordinates_2d(img, coords, order),
+        lambda: map_chunk_coordinates_3d(img, coords, order),
+        lambda: map_coordinates_2d(img, coords, order),
     )
 
 
@@ -1645,6 +1645,7 @@ def map_chunk_coordinates_3d_2(img, coords, order=3, chunk_size=4):
 
 
 def map_chunk_coordinates_3d(img, coords, order=3, chunk_size=4):
+    img = tf.cond(tf.equal(tf.rank(img), tf.constant(3)), lambda: img, lambda: tf.zeros((8, 8, 8)))
     chunk_shape = tf.shape(coords)[1:] // chunk_size
     chunk_shape = tf.concat([[tf.shape(coords)[0]], chunk_shape], axis=0)
     chunk_shape = tf.cast(chunk_shape, tf.int64)
@@ -1807,6 +1808,7 @@ def map_chunk_coordinates_3d(img, coords, order=3, chunk_size=4):
 
 
 def map_chunk_coordinates_2d(img, coords, order=3, chunk_size=4):
+    img = tf.cond(tf.equal(tf.rank(img), tf.constant(2)), lambda: img, lambda: img[0])
     chunk_size = tf.constant(chunk_size, dtype=tf.int64)
     chunk_shape = tf.shape(coords, out_type=tf.int64)[1:] // chunk_size
     chunk_shape = tf.concat([[tf.shape(coords)[0]], chunk_shape], axis=0)
@@ -1926,6 +1928,7 @@ def map_chunk_coordinates_2d(img, coords, order=3, chunk_size=4):
 
 
 def map_coordinates_2d(img, coords, order=3):
+    img = tf.cond(tf.equal(tf.rank(img), tf.constant(2)), lambda: img, lambda: img[0])
     new_coords = tf.concat(
         [tf.reshape(coords[0], (-1, 1)), tf.reshape(coords[1], (-1, 1))],
         axis=1,
@@ -1946,7 +1949,7 @@ def map_coordinates_2d(img, coords, order=3):
     tmp_img = tf.reshape(img, (1, -1, 1))
     tmp_img = tf.cast(tmp_img, tf.float32)
     result = tfa.image.interpolate_spline(
-        original_coords, tmp_img, new_coords, order=order
+        original_coords, tmp_img, new_coords, order=3
     )
     result = tf.reshape(result, tf.shape(coords)[1:])
     return result
@@ -2429,7 +2432,7 @@ def thomas_algorithm(A, B, C, D):
 
 
 def main():
-    '''
+    
     # chunk spline intp test here
     patch_size = [40, 56, 40]
     patch_center_dist_from_border = [30, 30, 30]
@@ -2440,7 +2443,7 @@ def main():
     print(seg)
     print(data.shape)
     print(seg.shape)
-    '''
+    
     '''
     # cubic spline intep 1d test here
     x = tf.range(50)
@@ -2505,7 +2508,7 @@ def main():
     print(tf_time)
     '''
 
-    
+    '''
     # cubic spline intep 3d test here
     a = tf.range(73 * 80 * 64)
     a = tf.reshape(a, (73, 80, 64))
@@ -2517,7 +2520,7 @@ def main():
     tf_time = tf_end - tf_start
     # print(result)
     print(tf_time)
-    
+    '''
 
     '''
     # cubic spline intep v3 test here
