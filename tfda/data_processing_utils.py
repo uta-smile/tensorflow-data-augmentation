@@ -12,6 +12,7 @@ import time
 from copy import deepcopy
 
 import tensorflow as tf
+from tfda.utils import pi, TFbT, TFbF
 
 # Others
 import tensorflow_addons as tfa
@@ -71,16 +72,16 @@ default_2D_augmentation_params = deepcopy(default_3D_augmentation_params)
 default_2D_augmentation_params["elastic_deform_alpha"] = (0.0, 200.0)
 default_2D_augmentation_params["elastic_deform_sigma"] = (9.0, 13.0)
 default_2D_augmentation_params["rotation_x"] = (
-    -180.0 / 360 * 2.0 * math.pi,
-    180.0 / 360 * 2.0 * math.pi,
+    -180.0 / 360 * 2.0 * pi,
+    180.0 / 360 * 2.0 * pi,
 )
 default_2D_augmentation_params["rotation_y"] = (
-    -0.0 / 360 * 2.0 * math.pi,
-    0.0 / 360 * 2.0 * math.pi,
+    -0.0 / 360 * 2.0 * pi,
+    0.0 / 360 * 2.0 * pi,
 )
 default_2D_augmentation_params["rotation_z"] = (
-    -0.0 / 360 * 2.0 * math.pi,
-    0.0 / 360 * 2.0 * math.pi,
+    -0.0 / 360 * 2.0 * pi,
+    0.0 / 360 * 2.0 * pi,
 )
 
 # sometimes you have 3d data and a 3d net but cannot augment them properly in 3d due to anisotropy (which is currently
@@ -98,16 +99,18 @@ def rotate_coords_3d(coords, angle_x, angle_y, angle_z):
     rot_matrix = create_matrix_rotation_x_3d(angle_x, rot_matrix)
     rot_matrix = create_matrix_rotation_y_3d(angle_y, rot_matrix)
     rot_matrix = create_matrix_rotation_z_3d(angle_z, rot_matrix)
-    coords_shape = coords.shape
-    coords = tf.matmul(
+    coords_shape = tf.shape(coords)
+    coords = tf.transpose(
+        tf.matmul(
         tf.transpose(tf.reshape(coords, (len(coords), -1))), rot_matrix
-    ).transpose()
+    )
+    )
     coords = tf.reshape(coords, coords_shape)
     return coords
 
 
 def create_matrix_rotation_x_3d(angle, matrix=None):
-    rotation_x = tf.constant(
+    rotation_x = tf.convert_to_tensor(
         [
             [1, 0, 0],
             [0, tf.math.cos(angle), -tf.math.sin(angle)],
@@ -121,7 +124,7 @@ def create_matrix_rotation_x_3d(angle, matrix=None):
 
 
 def create_matrix_rotation_y_3d(angle, matrix=None):
-    rotation_y = tf.constant(
+    rotation_y = tf.convert_to_tensor(
         [
             [tf.math.cos(angle), 0, tf.math.sin(angle)],
             [0, 1, 0],
@@ -135,7 +138,7 @@ def create_matrix_rotation_y_3d(angle, matrix=None):
 
 
 def create_matrix_rotation_z_3d(angle, matrix=None):
-    rotation_z = tf.constant(
+    rotation_z = tf.convert_to_tensor(
         [
             [tf.math.cos(angle), -tf.math.sin(angle), 0],
             [tf.math.sin(angle), tf.math.cos(angle), 0],
@@ -150,16 +153,18 @@ def create_matrix_rotation_z_3d(angle, matrix=None):
 
 def rotate_coords_2d(coords, angle):
     rot_matrix = create_matrix_rotation_2d(angle)
-    coords_shape = coords.shape
-    coords = tf.matmul(
+    coords_shape = tf.shape(coords)
+    coords = tf.transpose(
+        tf.matmul(
         tf.transpose(tf.reshape(coords, (len(coords), -1))), rot_matrix
-    ).transpose()
+    )
+    )
     coords = tf.reshape(coords, coords_shape)
     return coords
 
 
 def create_matrix_rotation_2d(angle, matrix=None):
-    rotation = tf.constant(
+    rotation = tf.convert_to_tensor(
         [
             [tf.math.cos(angle), -math.sin(angle)],
             [tf.math.sin(angle), tf.math.cos(angle)],
@@ -173,42 +178,42 @@ def create_matrix_rotation_2d(angle, matrix=None):
 
 def get_batch_size(final_patch_size, rot_x, rot_y, rot_z, scale_range):
     if isinstance(rot_x, (tuple, list)):
-        rot_x = max(tf.abs(rot_x))
+        rot_x = tf.reduce_max(tf.abs(rot_x))
     if isinstance(rot_y, (tuple, list)):
-        rot_y = max(tf.abs(rot_y))
+        rot_y = tf.reduce_max(tf.abs(rot_y))
     if isinstance(rot_z, (tuple, list)):
-        rot_z = max(tf.abs(rot_z))
-    rot_x = min(90 / 360 * 2.0 * tf.pi, rot_x)
-    rot_y = min(90 / 360 * 2.0 * tf.pi, rot_y)
-    rot_z = min(90 / 360 * 2.0 * tf.pi, rot_z)
-    coords = tf.constant(final_patch_size)
+        rot_z = tf.reduce_max(tf.abs(rot_z))
+    rot_x = tf.minimum(90 / 360 * 2.0 * pi, rot_x)
+    rot_y = tf.minimum(90 / 360 * 2.0 * pi, rot_y)
+    rot_z = tf.minimum(90 / 360 * 2.0 * pi, rot_z)
+    coords = tf.cast(final_patch_size, dtype=tf.float32)
     final_shape = tf.identity(coords)
     if len(coords) == 3:
         final_shape = tf.math.reduce_max(
-            tf.concat(
-                (tf.abs(rotate_coords_3d(coords, rot_x, 0, 0)), final_shape)
+            tf.stack(
+                (tf.abs(rotate_coords_3d(coords, rot_x, 0., 0.)), final_shape)
             ),
             axis=0,
         )
         final_shape = tf.math.reduce_max(
-            tf.concat(
-                (tf.abs(rotate_coords_3d(coords, 0, rot_y, 0)), final_shape)
+            tf.stack(
+                (tf.abs(rotate_coords_3d(coords, 0., rot_y, 0.)), final_shape)
             ),
             axis=0,
         )
         final_shape = tf.math.reduce_max(
-            tf.concat(
-                (tf.abs(rotate_coords_3d(coords, 0, 0, rot_z)), final_shape)
+            tf.stack(
+                (tf.abs(rotate_coords_3d(coords, 0., 0., rot_z)), final_shape)
             ),
             axis=0,
         )
     elif len(coords) == 2:
         final_shape = tf.math.reduce_max(
-            tf.concat((tf.abs(rotate_coords_2d(coords, rot_x)), final_shape)),
+            tf.stack((tf.abs(rotate_coords_2d(coords, rot_x)), final_shape)),
             axis=0,
         )
     final_shape /= min(scale_range)
-    return final_shape.astype(int)
+    return tf.cast(final_shape, tf.int32)
 
 
 class DataAugmentor:
@@ -255,9 +260,7 @@ class DataAugmentor:
 
         stage_plans = self.plans["plans_per_stage"][self.stage]
         self.batch_size = stage_plans["batch_size"]
-        self.patch_size = stage_plans[
-            "patch_size"
-        ]  # here, in the orginal code, the author convert it to np.array. It may need to change later.
+        self.patch_size = tf.convert_to_tensor(stage_plans["patch_size"], tf.int64)  # here, in the orginal code, the author convert it to np.array. It may need to change later.
         self.do_dummy_2D_aug = stage_plans["do_dumy_2D_data_aug"]
         self.pad_all_sides = None
         self.use_mask_for_norm = plans["use_mask_for_norm"]
@@ -320,9 +323,6 @@ class DataAugmentor:
             self.basic_generator_patch_size = tf.constant(
                 [self.patch_size[0]] + list(self.basic_generator_patch_size)
             )
-            assert (
-                self is None
-            ), f"do dummpy 2d: {self.basic_generator_patch_size}"
 
         else:
             self.basic_generator_patch_size = get_batch_size(
@@ -332,6 +332,7 @@ class DataAugmentor:
                 self.data_aug_param["rotation_z"],
                 self.data_aug_param["scale_range"],
             )
+        self.basic_generator_patch_size = tf.cast(self.basic_generator_patch_size, tf.int64)
         self.data_aug_param["scale_range"] = (0.7, 1.4)
         self.data_aug_param["do_elastic"] = False
         self.data_aug_param["selected_seg_channels"] = [0]
@@ -350,9 +351,9 @@ class DataAugmentor:
         return_type,
     ):
         if tf.random.uniform([]) < self.oversample_foregroung_percent:
-            force_fg = True
+            force_fg = TFbT
         else:
-            force_fg = False
+            force_fg = TFbF
         class_locations = {}
         for i, class_locations_decode in enumerate(class_locations_bytes):
             class_locations_decode = tf.io.decode_raw(
@@ -366,17 +367,11 @@ class DataAugmentor:
         ) - tf.convert_to_tensor(self.patch_size, dtype=tf.int64)
         case_all_data = tf.concat([image, label], axis=0)
         # assert need_to_pad is None, f'{need_to_pad}, {case_all_data.shape}, {self.basic_generator_patch_size}'
-        for d in tf.range(3):
-            if (
-                need_to_pad[d] + case_all_data.shape[d + 1]
-                < self.basic_generator_patch_size[d]
-            ):
-                need_to_pad_d = (
-                    self.basic_generator_patch_size[d]
-                    - case_all_data.shape[d + 1]
-                )
-                need_to_pad = update_tf_channel(need_to_pad, d, need_to_pad_d)
-                #  need_to_pad[d] = self.basic_generator_patch_size[d] - case_all_data.shape[d+1]
+        def update_need_to_pad(need_to_pad, d):
+            need_to_pad_d = self.basic_generator_patch_size[d] - tf.shape(case_all_data)[d+1]
+            return tf.cond(tf.less(need_to_pad[d]+tf.shape(case_all_data)[d], self.basic_generator_patch_size[d]), lambda: update_tf_channel(need_to_pad, d, need_to_pad_d), lambda: need_to_pad)
+            #  need_to_pad[d] = self.basic_generator_patch_size[d] - case_all_data.shape[d+1]
+        need_to_pad = tf.map_fn(lambda d: update_need_to_pad(need_to_pad, d), elems=tf.range(3, dtype=tf.float32))
         shape = case_all_data.shape[1:]
         lb_x = -need_to_pad[0] // 2
         ub_x = (
@@ -509,26 +504,10 @@ class DataAugmentor:
         )
 
     def formalize_data_3d(self, data):
-        (
-            case_identifier,
-            image_raw,
-            label_raw,
-            class_locations_bytes,
-            class_locations_shape,
-        ) = (
-            data["case_identifier"],
-            data["image/encoded"],
-            data["image/class/label"],
-            data["class_locations_bytes"],
-            data["class_locations_shape"],
-        )
-        # TODO please note that in this "generate_train_batch" function, we don't deal the 3D UNet Cascade. We will modify it after we tune the pipeline of casecade
-        original_image_size = tf.cast(data["image/shape"], dtype=tf.int64)
-        original_label_size = tf.cast(data["label/shape"], dtype=tf.int64)
 
-        images, segs = [], []
-        zero = tf.constant(0, dtype=tf.int64)
-        for i in tf.range(self.batch_size):
+        def process_batch(ii):
+            i = tf.cast(ii, tf.int64)
+            zero = tf.constant(0, dtype=tf.int64)
             image = tf.io.decode_raw(image_raw[i], tf.as_dtype(tf.float32))
             label = tf.io.decode_raw(label_raw[i], tf.as_dtype(tf.float32))
             original_image, original_label = tf.reshape(
@@ -540,7 +519,7 @@ class DataAugmentor:
             if label.dtype == tf.int64:
                 label = tf.cast(label, dtype=tf.int64)
             class_locations = {}
-            for c in tf.range(class_locations_bytes[i].shape[0]):
+            for c in range(class_locations_bytes[i].shape[0]):
                 class_locations_decode = tf.io.decode_raw(
                     class_locations_bytes[i][c], tf.int64
                 )
@@ -552,26 +531,18 @@ class DataAugmentor:
             else:
                 force_fg = False
             case_all_data = tf.concat([image, label], axis=0)
-            self.basic_generator_patch_size = tf.convert_to_tensor(
+            self.basic_generator_patch_size = tf.cast(
                 self.basic_generator_patch_size, dtype=tf.int64
             )
-            self.patch_size = tf.convert_to_tensor(
+            self.patch_size = tf.cast(
                 self.patch_size, dtype=tf.int64
             )
             need_to_pad = self.basic_generator_patch_size - self.patch_size
-            for d in tf.range(3):
-                if (
-                    need_to_pad[d]
-                    + tf.shape(case_all_data, out_type=tf.int64)[d + 1]
-                    < self.basic_generator_patch_size[d]
-                ):
-                    need_to_pad_d = (
-                        self.basic_generator_patch_size[d]
-                        - tf.shape(case_all_data, out_type=tf.int64)[d + 1]
-                    )
-                    need_to_pad = update_tf_channel(
-                        need_to_pad, d, need_to_pad_d
-                    )
+            def update_need_to_pad(need_to_pad, d):
+                need_to_pad_d = self.basic_generator_patch_size[d] - tf.shape(case_all_data, out_type=tf.int64)[d+1]
+                return tf.cond(tf.less(need_to_pad[d]+tf.shape(case_all_data, out_type=tf.int64)[d+1], self.basic_generator_patch_size[d]), lambda: need_to_pad_d, lambda: need_to_pad[d])
+            need_to_pad = tf.map_fn(lambda d: update_need_to_pad(need_to_pad, d), elems=tf.range(3, dtype=tf.int64))
+            need_to_pad = tf.cast(need_to_pad, tf.int64)
             shape = tf.shape(case_all_data, out_type=tf.int64)[1:]
             lb_x = -need_to_pad[0] // 2
             ub_x = (
@@ -609,6 +580,8 @@ class DataAugmentor:
                 foreground_classes = [
                     c for c in class_locations.keys() if c != 0
                 ]
+                voxels_of_that_class = class_locations[1]
+                selected_voxel = voxels_of_that_class[0]
                 if len(foreground_classes) == 0:
                     selected_class = None
                     voxels_of_that_class = None
@@ -616,8 +589,6 @@ class DataAugmentor:
                         f"case does not contain any foreground classes {case_identifier}"
                     )
                 else:
-                    voxels_of_that_class = class_locations[1]
-                    selected_voxel = voxels_of_that_class[0]
 
                     rand_val = tf.random.uniform(
                         [],
@@ -700,7 +671,6 @@ class DataAugmentor:
                 ),
                 mode="CONSTANT",
             )
-            images.append(img)
             seg = tf.pad(
                 case_all_data[-1:],
                 (
@@ -721,15 +691,10 @@ class DataAugmentor:
                 mode="CONSTANT",
                 constant_values=-1,
             )
-            segs.append(seg)
-        images = tf.stack(images)
-        segs = tf.stack(segs)
-        # assert data is None, f'{images}'
-        data["images"] = images
-        data["labels"] = segs
-        return data
+            result = tf.stack([img, seg])
+            return result
 
-    def formalize_data_2d(self, data):
+        # main body begin here
         (
             case_identifier,
             image_raw,
@@ -743,226 +708,16 @@ class DataAugmentor:
             data["class_locations_bytes"],
             data["class_locations_shape"],
         )
+        # TODO please note that in this "generate_train_batch" function, we don't deal the 3D UNet Cascade. We will modify it after we tune the pipeline of casecade
         original_image_size = tf.cast(data["image/shape"], dtype=tf.int64)
         original_label_size = tf.cast(data["label/shape"], dtype=tf.int64)
 
-        images, segs = [], []
-        zero = tf.constant(0, dtype=tf.int64)
-        for i in tf.range(self.batch_size):
-            image = tf.io.decode_raw(image_raw[i], tf.as_dtype(tf.float32))
-            label = tf.io.decode_raw(label_raw[i], tf.as_dtype(tf.float32))
-            original_image, original_label = tf.reshape(
-                image, original_image_size[i]
-            ), tf.reshape(label, original_label_size[i])
-            image = tf.cast(original_image, dtype=tf.float32)
-            label = tf.cast(original_label, dtype=tf.float32)
-            # TPU doesn't support tf.int64 well, use tf.int64 directly.
-            if label.dtype == tf.int64:
-                label = tf.cast(label, dtype=tf.int64)
-            class_locations = {}
-            for c in tf.range(class_locations_bytes[i].shape[0]):
-                class_locations_decode = tf.io.decode_raw(
-                    class_locations_bytes[i][c], tf.int64
-                )
-                class_locations[c + 1] = tf.reshape(
-                    class_locations_decode, [class_locations_shape[i][c], -1]
-                )
-
-            if self.get_do_oversample(i):
-                force_fg = True
-            else:
-                force_fg = False
-
-            case_all_data = tf.concat([image, label], axis=0)
-            # this is for when there is just a 2d slice in case_all_data (2d support)
-            if tf.rank(case_all_data) == 3:
-                case_all_data = case_all_data[:, tf.newaxis]
-
-            if not force_fg:
-                random_slice = tf.random.uniform(
-                    [],
-                    minval=0,
-                    maxval=tf.shape(case_all_data)[1],
-                    dtype=tf.int64,
-                )
-                selected_class = None
-            else:
-                foreground_classes = [
-                    c for c in class_locations.keys() if c > 0
-                ]
-                if len(foreground_classes) == 0:
-                    selected_class = None
-                    random_slice = random_choice(
-                        tf.range(tf.shape(case_all_data)[1]), 0
-                    )[0]
-                    tf.print(
-                        f"case does not contain any foreground classes {case_identifier}"
-                    )
-                else:
-                    voxels_of_that_class = class_locations[1]
-                    rand_val = tf.random.uniform(
-                        [],
-                        minval=0,
-                        maxval=len(class_locations),
-                        dtype=tf.int64,
-                    )
-                    for key in class_locations.keys():
-                        if tf.constant(key, dtype=tf.int64) == rand_val:
-                            voxels_of_that_class = class_locations[key]
-                            valid_slices, _ = tf.unique(
-                                voxels_of_that_class[:, 0]
-                            )
-                            random_slice = random_choice(valid_slices, 0)[0]
-                            voxels_of_that_class = voxels_of_that_class[
-                                voxels_of_that_class[:, 0] == random_slice
-                            ]
-                            voxels_of_that_class = voxels_of_that_class[:, 1:]
-            if self.pseud_3d_slices == 1:
-                case_all_data = case_all_data[:, random_slice]
-            else:
-                mn = random_slice - (self.pseud_3d_slices - 1) // 2
-                mx = random_slice + (self.pseud_3d_slices - 1) // 2 + 1
-                valid_mn = tf.maximum(mn, zero)
-                valid_mx = tf.minimum(mx, tf.shape(case_all_data)[1])
-                case_all_seg = case_all_data[-1:]
-                case_all_data = case_all_data[:-1]
-                case_all_data = case_all_data[:, valid_mn:valid_mx]
-                case_all_seg = case_all_seg[:, random_slice]
-                need_to_pad_below = valid_mn - mn
-                need_to_pad_above = mx - valid_mx
-                if need_to_pad_below > zero:
-                    shp_for_pad = tf.shape(case_all_data)
-                    shp_for_pad_1 = need_to_pad_below
-                    shp_for_pad = update_tf_channel(
-                        shp_for_pad, 1, shp_for_pad_1
-                    )
-                    case_all_data = tf.concat(
-                        [tf.zeros(shp_for_pad), case_all_data], axis=1
-                    )
-                if need_to_pad_above > zero:
-                    shp_for_pad = tf.shape(case_all_data)
-                    shp_for_pad_1 = need_to_pad_above
-                    shp_for_pad = update_tf_channel(
-                        shp_for_pad, 1, shp_for_pad_1
-                    )
-                    case_all_data = tf.concat(
-                        [case_all_data, tf.zeros(shp_for_pad)], axis=1
-                    )
-                case_all_data = tf.reshape(
-                    case_all_data,
-                    (
-                        -1,
-                        tf.shape(case_all_data)[-2],
-                        tf.shape(case_all_data)[-1],
-                    ),
-                )
-                case_all_data = tf.concat(
-                    [case_all_data, case_all_seg], axis=0
-                )
-
-            assert tf.rank(case_all_data) == 3
-            self.basic_generator_patch_size = tf.convert_to_tensor(
-                self.basic_generator_patch_size, dtype=tf.int64
-            )
-            self.patch_size = tf.convert_to_tensor(
-                self.patch_size, dtype=tf.int64
-            )
-            need_to_pad = self.basic_generator_patch_size - self.patch_size
-            for d in tf.range(2):
-                if (
-                    tf.shape(need_to_pad)[d] + tf.shape(case_all_data)[d + 1]
-                    < self.basic_generator_patch_size[d]
-                ):
-                    need_to_pad_d = (
-                        self.basic_generator_patch_size[d]
-                        - tf.shape(case_all_data)[d + 1]
-                    )
-                    need_to_pad = update_tf_channel(
-                        need_to_pad, d, need_to_pad_d
-                    )
-            shape = tf.shape(case_all_data)[1:]
-            lb_x = -need_to_pad[0] // 2
-            ub_x = (
-                shape[0]
-                + need_to_pad[0] // 2
-                + need_to_pad[0] % 2
-                - self.basic_generator_patch_size[0]
-            )
-            lb_y = -need_to_pad[1] // 2
-            ub_y = (
-                shape[1]
-                + need_to_pad[1] // 2
-                + need_to_pad[1] % 2
-                - self.basic_generator_patch_size[1]
-            )
-
-            if not force_fg or selected_class is None:
-                bbox_x_lb = tf.random.uniform(
-                    [], minval=lb_x, maxval=ub_x + 1, dtype=tf.int64
-                )
-                bbox_y_lb = tf.random.uniform(
-                    [], minval=lb_y, maxval=ub_y + 1, dtype=tf.int64
-                )
-            else:
-                selected_voxel = random_choice(voxels_of_that_class, 0)[0]
-                bbox_x_lb = tf.maximum(
-                    lb_x,
-                    selected_voxel[0]
-                    - self.basic_generator_patch_size[0] // 2,
-                )
-                bbox_y_lb = tf.maximum(
-                    lb_y,
-                    selected_voxel[1]
-                    - self.basic_generator_patch_size[1] // 2,
-                )
-
-            bbox_x_ub = bbox_x_lb + self.basic_generator_patch_size[0]
-            bbox_y_ub = bbox_y_lb + self.basic_generator_patch_size[1]
-
-            valid_bbox_x_lb = tf.maximum(zero, bbox_x_lb)
-            valid_bbox_x_ub = tf.minimum(shape[0], bbox_x_ub)
-            valid_bbox_y_lb = tf.maximum(zero, bbox_y_lb)
-            valid_bbox_y_ub = tf.minimum(shape[1], bbox_y_ub)
-
-            case_all_data = case_all_data[
-                :,
-                valid_bbox_x_lb:valid_bbox_x_ub,
-                valid_bbox_y_lb:valid_bbox_y_ub,
-            ]
-
-            case_all_data_donly = tf.pad(
-                case_all_data[:-1],
-                [
-                    [0, 0],
-                    [
-                        -tf.minimum(zero, bbox_x_lb),
-                        tf.maximum(bbox_x_ub - shape[0], zero),
-                    ],
-                    [
-                        -tf.minimum(zero, bbox_y_lb),
-                        tf.maximum(bbox_y_ub - shape[1], zero),
-                    ],
-                ],
-            )
-            case_all_data_segonly = tf.pad(
-                case_all_data[-1:],
-                [
-                    [0, 0],
-                    [
-                        -tf.minimum(zero, bbox_x_lb),
-                        tf.maximum(bbox_x_ub - shape[0], zero),
-                    ],
-                    [
-                        -tf.minimum(zero, bbox_y_lb),
-                        tf.maximum(bbox_y_ub - shape[1], zero),
-                    ],
-                ],
-                constant_values=-1,
-            )
-            images.append(case_all_data_donly)
-            segs.append(case_all_data_segonly)
-        data["images"] = tf.stack(images)
-        data["labels"] = tf.stack(segs)
+        results = tf.map_fn(lambda i: process_batch(i), elems=tf.range(self.batch_size, dtype=tf.float32))
+        images = results[:, 0]
+        segs = results[:, 1]
+        # assert data is None, f'{images}'
+        data["images"] = images
+        data["labels"] = segs
         return data
 
 
@@ -2266,7 +2021,7 @@ def random_choice(a, axis, sample_shape=None):
     shape = tf.shape(a)
     dim = shape[axis]
     choice_indices = tf.random.uniform(
-        sample_shape, minval=0, maxval=dim, dtype=tf.int64
+        sample_shape, minval=0, maxval=dim, dtype=tf.int32
     )
     samples = tf.gather(a, choice_indices, axis=axis)
     """
@@ -2277,10 +2032,12 @@ def random_choice(a, axis, sample_shape=None):
 
 
 def update_tf_channel(data, idx, update_value):
+    shape = data.get_shape()
     update_value = update_value[
         tf.newaxis,
     ]
     new_data = tf.concat([data[:idx], update_value, data[idx + 1 :]], axis=0)
+    new_data.set_shape(shape)
     return new_data
 
 @tf.function(jit_compile=True)
