@@ -44,7 +44,7 @@ class SimulateLowResolutionTransform(TFDABase):
         self.zoom_range = zoom_range
         self.ignore_axes = ignore_axes
 
-    def __call__(self, **data_dict):
+    def call(self, **data_dict):
         data_list = []
         for b in tf.range(len(data_dict[self.data_key])):
             if tf.random.uniform(()) < self.p_per_sample:
