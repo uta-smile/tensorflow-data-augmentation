@@ -57,7 +57,7 @@ from tfda.utils import (
     TFf0,
     TFf1,
     TFi1,
-    pi,
+    pi, nan,
     to_tf_bool,
     to_tf_float,
 )
@@ -65,7 +65,7 @@ from tfda.utils import (
 import tensorflow as tf
 
 # Types
-from typing import Optional
+from typing import Optional, Tuple
 
 
 def augment_spatial_helper(sample_id: TFT, patch_size: TFT) -> TFT:
@@ -351,23 +351,24 @@ def augment_spatial(
 
 
 @tf.function
-def augment_mirroring(sample_data, sample_seg=None, axes=(0, 1, 2)):
-    if (len(sample_data.shape) != 3) and (len(sample_data.shape) != 4):
-        raise Exception(
+def augment_mirroring(sample_data: TFT, sample_seg: TFT = nan, axes: Tuple[int, ...] = (0, 1, 2)) -> TFT :
+    if (tf.rank(sample_data) != 3) and (tf.rank(sample_data) != 4):
+        tf.get_logger().exception(
             "Invalid dimension for sample_data and sample_seg. sample_data and sample_seg should be either "
             "[channels, x, y] or [channels, x, y, z]")
+        return sample_data, sample_seg
     if 0 in axes and tf.random.uniform(()) < 0.5:
         sample_data = sample_data[:, ::-1]
-        if sample_seg is not None:
+        if not tf.reduce_any(tf.math.is_nan(sample_seg)):
             sample_seg = sample_seg[:, ::-1]
     if 1 in axes and tf.random.uniform(()) < 0.5:
         sample_data = sample_data[:, :, ::-1]
-        if sample_seg is not None:
+        if not tf.reduce_any(tf.math.is_nan(sample_seg)):
             sample_seg = sample_seg[:, :, ::-1]
     if 2 in axes and len(sample_data.shape) == 4:
         if tf.random.uniform(()) < 0.5:
             sample_data = sample_data[:, :, :, ::-1]
-            if sample_seg is not None:
+            if not tf.reduce_any(tf.math.is_nan(sample_seg)):
                 sample_seg = sample_seg[:, :, :, ::-1]
     return sample_data, sample_seg
 
@@ -376,10 +377,10 @@ if __name__ == "__main__":
     data = tf.ones([1, 1, 70, 83, 64])
     seg = tf.ones([1, 1, 70, 83, 64])
     patch_size = tf.cast([40, 56, 40], tf.int64)
-    mirrored_strategy = tf.distribute.MirroredStrategy()
+    # mirrored_strategy = tf.distribute.MirroredStrategy()
 
-    # with tf.device("/CPU:0"):
-    with mirrored_strategy.scope():
-        augment_spatial(data, seg, patch_size, random_crop=TFbF)
+    with tf.device("/CPU:0"):
+    # with mirrored_strategy.scope():
+        tf.print(augment_spatial(data, seg, patch_size, random_crop=TFbF))
         # augment_spatial(data, seg, patch_size)
         # augment_spatial(data, seg, patch_size)

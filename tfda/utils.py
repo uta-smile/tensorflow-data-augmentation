@@ -49,6 +49,7 @@ TFi1 = tf.cast(1, tf.int64)
 TFbF = tf.cast(False, tf.bool)
 TFbT = tf.cast(True, tf.bool)
 pi = tf.constant(m.pi)
+nan = tf.constant(m.nan)
 
 
 @tf.function

@@ -36,6 +36,7 @@ license  : GPL-3.0+
 Spatial Transforms
 """
 
+from typing import Tuple
 import tensorflow as tf
 
 # Others
@@ -44,7 +45,7 @@ from tfda.augmentations.spatial_transformations import (
     augment_spatial,
 )
 from tfda.base import DTFT, TFT, TFDABase
-from tfda.utils import TFbF, TFbT, TFf0, TFf1, TFi1, pi
+from tfda.utils import TFbF, TFbT, TFf0, TFf1, TFi1, pi, nan
 
 
 class SpatialTransform(TFDABase):
@@ -164,37 +165,37 @@ class MirrorTransform(TFDABase):
 
     """
 
-    def __init__(self, axes=(0, 1, 2), data_key="data", label_key="seg"):
-        self.data_key = data_key
-        self.label_key = label_key
+    def __init__(self, axes: Tuple[int, ...] = (0, 1, 2), **kws):
+        super().__init__(**kws)
         self.axes = axes
-        if max(axes) > 2:
+        if tf.reduce_max(axes) > 2:
             raise ValueError(
                 "MirrorTransform now takes the axes as the spatial dimensions. What previously was "
                 "axes=(2, 3, 4) to mirror along all spatial dimensions of a 5d tensor (b, c, x, y, z) "
                 "is now axes=(0, 1, 2). Please adapt your scripts accordingly."
             )
 
-    def call(self, **data_dict):
-        data = data_dict.get(self.data_key)
-        seg = data_dict.get(self.label_key)
+    def call(self, **data_dict: TFT) -> DTFT:
+        data = data_dict.get(self.data_key, nan)
+        seg = data_dict.get(self.label_key, nan)
 
-        data_list = []
-        seg_list = []
-        for b in tf.range(len(data)):
-            sample_seg = None
-            if seg is not None:
-                sample_seg = seg[b]
-            ret_val = augment_mirroring(data[b], sample_seg, axes=self.axes)
-            data_list.append(ret_val[0])
-            if seg is not None:
-                seg_list.append(ret_val[1])
+        data_list = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
+        seg_list  = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
 
-        data = tf.stack(data_list)
-        data_dict["data"] = data
-        if seg is not None:
-            seg = tf.stack(seg_list)
-            data_dict["seg"] = seg
+        for b in tf.range(tf.shape(data)[0]):
+            if tf.random.uniform(()) < self.p_per_sample:
+                sample_seg = nan
+                if not tf.math.reduce_any(tf.math.is_nan(seg)):
+                    sample_seg = seg[b]
+                ret_val = augment_mirroring(data[b], sample_seg, axes=self.axes)
+                data_list = data_list.write(b, ret_val[0])
+                if not tf.math.reduce_any(tf.math.is_nan(seg)):
+                    seg_list = seg_list.write(b, ret_val[1])
+
+
+        data_dict["data"] = data_list.stack()
+        if tf.rank(seg) > 0 and seg_list.size() > 0:
+            data_dict["seg"] = seg_list.stack()
 
         return data_dict
 
@@ -218,24 +219,22 @@ if __name__ == "__main__":
 
     sa = SpatialTransform(tf.cast([40, 56, 40], tf.int64), random_crop=TFbF)
 
-    # with tf.device("/CPU:0"):
-    mirrored_strategy = tf.distribute.MirroredStrategy()
+    with tf.device("/CPU:0"):
+    # mirrored_strategy = tf.distribute.MirroredStrategy()
+    # with mirrored_strategy.scope():
+        # tf.print(sa(data=data_sample, seg=seg_sample))
 
-    # with tf.device("/CPU:0"):
-    with mirrored_strategy.scope():
-        tf.print(sa(data=data_sample, seg=seg_sample))
+        images = tf.random.uniform((8, 2, 20, 376, 376))
+        labels = tf.random.uniform(
+            (8, 1, 20, 376, 376), minval=0, maxval=2, dtype=tf.float32
+        )
+        data_dict = {"data": images, "seg": labels}
+        tf.print(
+            data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
+        )  # (8, 2, 20, 376, 376) (8, 1, 20, 376, 376)
+        data_dict = MirrorTransform((0, 1, 2))(**data_dict)
+        tf.print(
+            data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
+        )  # (8, 40, 376, 376) (8, 20, 376, 376)
 
-    print("END")
-
-    images = tf.random.uniform((8, 2, 20, 376, 376))
-    labels = tf.random.uniform(
-        (8, 1, 20, 376, 376), minval=0, maxval=2, dtype=tf.int32
-    )
-    data_dict = {"data": images, "seg": labels}
-    print(
-        data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
-    )  # (8, 2, 20, 376, 376) (8, 1, 20, 376, 376)
-    data_dict = MirrorTransform((0, 1, 2))(**data_dict)
-    print(
-        data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
-    )  # (8, 40, 376, 376) (8, 20, 376, 376)
+    tf.print("END")
