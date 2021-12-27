@@ -75,7 +75,7 @@ def augment_spatial_helper(sample_id: TFT, patch_size: TFT) -> TFT:
 @tf.function(experimental_follow_type_hints=True)
 def augment_spatial(
     data: TFT,
-    seg: Optional[TFT],
+    seg: TFT,
     patch_size: TFT,
     patch_center_dist_from_border: TFT = 30 * TFi1,
     do_elastic_deform: TFT = TFbT,
@@ -239,7 +239,7 @@ def augment_spatial(
             data_result = update_tf_channel(
                 data_result, sample_id, data_sample
             )
-            if seg is not None:
+            if not tf.math.reduce_any(tf.math.is_nan(seg)):
                 seg_sample = tf.zeros(tf.shape(seg_result)[1:])
                 channel_id = tf.constant(0)
                 cond_to_loop_seg = lambda channel_id, seg_sample: tf.less(
@@ -268,8 +268,9 @@ def augment_spatial(
                     seg_result, sample_id, seg_sample
                 )
         else:
-            if seg is None:
-                s = None
+            s = nan
+            if tf.math.reduce_any(tf.math.is_nan(seg)):
+                s = nan
             else:
                 s = seg[sample_id : sample_id + 1]
             # if random_crop:
@@ -292,7 +293,7 @@ def augment_spatial(
                 data[sample_id : sample_id + 1], patch_size, s
             )
             data_result = update_tf_channel(data_result, sample_id, d[0])
-            if seg is not None:
+            if tf.math.reduce_any(tf.math.is_nan(seg)):
                 seg_result = update_tf_channel(seg_result, sample_id, s[0])
         sample_id = sample_id + 1
         return sample_id, patch_size, data, seg, data_result, seg_result
@@ -309,8 +310,8 @@ def augment_spatial(
         sample_id, sample_num
     )
     dim = tf.cast(tf.shape(patch_size)[0], tf.int64)
-    seg_result = None
-    if seg is not None:
+    seg_result = nan
+    if not tf.math.reduce_any(tf.math.is_nan(seg)):
         seg_result = tf.cond(
             tf.equal(dim, tf.constant(2, dtype=tf.int64)),
             lambda: tf.zeros(
