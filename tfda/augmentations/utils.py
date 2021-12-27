@@ -207,21 +207,16 @@ def gaussian_kernel1d(sigma: TFT, radius: TFT) -> TFT:
 
 
 @tf.function(experimental_follow_type_hints=True)
-def gaussian_filter1d(input: TFT, sigma: TFT, mode: TFT, cval: TFT = TFf0):
-    sigma = tf.cast(sigma, tf.float32)
-    lw = tf.cast(sigma * sigma + 0.5, tf.int64)
-    weights = gaussian_kernel1d(sigma, lw)[::-1]
+def gf_pad(x: TFT, mode: TFT, cval: TFT, ws: TFT, ins: TFT):
+    """Pad.
 
-    ws = tf.size(weights)
-    ins = tf.size(input)
-
-    # padding
-    # for the VALID, width = (pin_w - k_w + 1) / stride(1) = in_w
-    # padding size = pin_w - in_w = k_w - 1
-    # Left geq Right
+    for the VALID, width = (pin_w - k_w + 1) / stride(1) = in_w
+    padding size = pin_w - in_w = k_w - 1
+    Left geq Right
+    """
     pv = tf.cond(
         tf.equal(mode, "reflect"),
-        lambda: input,
+        lambda: x,
         lambda: tf.zeros(ins) + cval,
     )
     lp = tf.concat([pv, pv[::-1]], axis=0)
@@ -232,17 +227,34 @@ def gaussian_filter1d(input: TFT, sigma: TFT, mode: TFT, cval: TFT = TFf0):
 
     lpv = tf.tile(lp, [ll // 2 // ins + 1])[:ll][::-1]
     lrv = tf.tile(rp, [rl // 2 // ins + 1])[:rl]
-    input = tf.concat([lpv, input, lrv], axis=0)
+    return tf.concat([lpv, x, lrv], axis=0)
 
-    input = tf.reshape(input, (1, -1, 1))
+
+
+@tf.function(experimental_follow_type_hints=True)
+def gaussian_filter1d(xs: TFT, sigma: TFT, mode: TFT, cval: TFT = TFf0):
+    sigma = tf.cast(sigma, tf.float32)
+    lw = tf.cast(sigma * sigma + 0.5, tf.int64)
+    weights = gaussian_kernel1d(sigma, lw)[::-1]
+
+    ws = tf.size(weights)
+    ins = tf.shape(xs)[1]
+
+    # padding
+    xs = tf.map_fn(
+        lambda x: gf_pad(x, mode, cval, ws, ins,),
+        xs,
+    )
+
+    xs = tf.reshape(xs, (-1, tf.shape(xs)[1], 1))
     kernel = tf.reshape(weights, (-1, 1, 1))
 
-    return tf.squeeze(tf.nn.conv1d(input, kernel, stride=1, padding="VALID"))
+    return tf.squeeze(tf.nn.conv1d(xs, kernel, stride=1, padding="VALID"))
 
 
 @tf.function(experimental_follow_type_hints=True)
 def gaussian_filter(
-    input: TFT, sigma: TFT, mode: TFT = "reflect", cval: TFT = TFf0
+    xxs: TFT, sigma: TFT, mode: TFT = "reflect", cval: TFT = TFf0
 ) -> TFT:
     """Gaussian filter trans from scipy gaussian filter.
 
@@ -265,23 +277,15 @@ def gaussian_filter(
         lambda gfa, idx: tf.reshape(
             tf.transpose(
                 tf.map_fn(
-                    lambda xs: tf.map_fn(
-                            lambda x: gaussian_filter1d(
-                                    x,
-                                    sigma,
-                                    tf.cast(mode, tf.string),
-                                    cval,
-                                ),
-                            xs,
-                        ),
+                    lambda xs: gaussian_filter1d(xs, sigma, mode, cval),
                     tf.transpose(gfa, perms[idx]),
                 ),
                 rperms[idx],
             ),
-            tf.shape(input),
+            tf.shape(xxs),
         ),
         tf.range(3),
-        input,
+        xxs,
     )
 
 
