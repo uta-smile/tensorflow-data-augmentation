@@ -2275,7 +2275,7 @@ def update_tf_channel(data, idx, update_value):
     new_data = tf.concat([data[:idx], update_value, data[idx + 1 :]], axis=0)
     return new_data
 
-@tf.function
+@tf.function(jit_compile=True)
 def cubic_spline_interpolation_3d(data, coords):
     x, y = tf.range(tf.shape(data)[0]), tf.range(tf.shape(coords)[0])
     x, y = tf.cast(x, tf.float32), tf.cast(y, tf.float32)
@@ -2291,9 +2291,13 @@ def cubic_spline_interpolation_2d(data, coords):
     x, y = tf.cast(x, tf.float32), tf.cast(y, tf.float32)
     # cubic_spline_interpolation_1d_2(data[0], coords[:, 1])
     interpolate_1d_x = tf.map_fn(lambda i: cubic_spline_interpolation_1d_2(data[i], coords[:, 1]), elems=tf.range(tf.shape(x)[0]), dtype=tf.float32)
+    # interpolate_1d_x = cubic_spline_interpolation_1d_3(data, coords[:, 1])
     # cubic_spline_interpolation_1d_2(interpolate_1d_x[:, 0], coords[0, 0:1])
     result = tf.map_fn(lambda i: cubic_spline_interpolation_1d_2(interpolate_1d_x[:, i], coords[i, 0:1]), elems=tf.range(tf.shape(y)[0]), dtype=tf.float32)
+    # result = cubic_spline_interpolation_1d_3(tf.transpose(interpolate_1d_x), coords[:, 1])
+    # result = tf.linalg.diag_part(result)
     return result[:,0]
+    # return result
 
 @tf.function
 def cubic_spline_interpolation_1d(data, coords):
@@ -2360,6 +2364,48 @@ def cubic_spline_interpolation_1d_2(data, coords):
     return result
 
 @tf.function
+def cubic_spline_interpolation_1d_3(data, coords):
+    bat = tf.shape(data)[0]
+    x = tf.range(tf.shape(data)[1])
+    x = tf.cast(x, tf.float32)
+    n = tf.shape(x)[0]
+    h = x[1:n] - x[:n-1]
+    A = h[:n-2]
+    B = 2 * (h[:n-2] + h[1: n-1])
+    C = h[1:n-1]
+    D = 6 * ((data[:, 2: n] - data[:, 1: n-1]) / h[1: n-1] - (data[:, 1: n-1] - data[:, :n-2]) / h[:n-2])
+    A = tf.linalg.diag(A)
+    B = tf.linalg.diag(B)
+    C = tf.linalg.diag(C)
+    D = tf.reshape(D, (bat, -1, 1))
+    zeros = tf.zeros([n-2, 1])
+    A0 = tf.concat([A, zeros, zeros], axis=1)
+    B0 = tf.concat([zeros, B, zeros], axis=1)
+    C0 = tf.concat([zeros, zeros, C], axis=1)
+    MAT = A0 + B0 + C0
+    D = tf.concat([tf.zeros((bat, 1, 1)), D, tf.zeros((bat, 1, 1))], axis=1)
+    zeros = tf.zeros([n])
+    one1 = tf.tensor_scatter_nd_update(zeros, [[0]], [1.])
+    one2 = tf.tensor_scatter_nd_update(zeros, [[n-1]], [1])
+    MAT = tf.concat([one1[tf.newaxis,], MAT, one2[tf.newaxis]], axis=0)
+    eye = tf.eye(n, batch_shape=[bat])
+    MAT = tf.matmul(eye, MAT)
+    X = tf.linalg.solve(MAT, D)
+    M = X[:, :, 0]
+    a = data[:, :n-1]
+    b = (data[:, 1: n] - data[:, 0: n-1]) / h[0: n-1] - (2 * h[0: n-1] * M[:, 0: n-1] + h[0: n-1] * M[:, 1: n]) / 6
+    c = M[:, 0: n-1] / 2
+    d = (M[:, 1: n] - M[:, 0: n-1]) / (6 * h[0: n-1])
+    coeff = tf.transpose(tf.concat([a[:, tf.newaxis], b[:, tf.newaxis], c[:, tf.newaxis], d[:, tf.newaxis]], axis=1), (0, 2, 1))
+    splines = tf.floor(coords)
+    x_ = coords - splines
+    splines = tf.cast(splines, tf.int32)
+    coeff = tf.gather(coeff, splines, axis=1)
+    # result = tf.map_fn(lambda i: a[splines[i]] + b[splines[i]] * (coords[i] - tf.cast(splines[i], tf.float32)) + c[splines[i]] * tf.pow((coords[i] - tf.cast(splines[i], tf.float32)), 2) + d[splines[i]] * tf.pow((coords[i] - tf.cast(splines[i], tf.float32)), 3), elems=tf.range(tf.shape(coords)[0]), dtype=tf.float32)
+    result = coeff[:, :, 0] + coeff[:, :, 1] * x_ + coeff[:, :, 2] * x_ * x_ + coeff[:, :, 3] * x_ * x_ * x_
+    return result
+
+@tf.function
 def thomas_algorithm(A, B, C, D):
     n = tf.shape(A)[0]
     C = tf.tensor_scatter_nd_update(C, [[0]], [C[0] / B[0]])
@@ -2384,31 +2430,30 @@ def thomas_algorithm(A, B, C, D):
 
 def main():
     '''
-    # patch_size = [10, 20, 10]
+    # chunk spline intp test here
     patch_size = [40, 56, 40]
     patch_center_dist_from_border = [30, 30, 30]
     data = tf.ones([1, 1, 70, 83, 64])
     seg = tf.ones([1, 1, 70, 83, 64])
-    # data = tf.ones([1, 1, 10, 20, 10])
-    # seg = tf.ones([1, 1, 10, 20, 10])
-    data, seg = augment_spatial(
-        data, seg, patch_size, patch_center_dist_from_border, random_crop=False
-    )
+    data, seg = augment_spatial(data, seg, patch_size, patch_center_dist_from_border, random_crop=False)
     print(data)
     print(seg)
     print(data.shape)
     print(seg.shape)
     '''
-
     '''
     # cubic spline intep 1d test here
     x = tf.range(50)
     x = tf.cast(x, tf.float32)
     y = tf.math.sin(x)
+    y = y[tf.newaxis,]
+    z = tf.math.cos(x)
+    z = z[tf.newaxis,]
     coords = tf.range(0, 49, 0.1)
     coords = tf.cast(coords, tf.float32)
     tf_start = time.time()
-    pred_y = cubic_spline_interpolation_1d(y, coords)
+    y = tf.concat([y, z], axis=0)
+    pred_y = cubic_spline_interpolation_1d_3(y, coords)
     tf_end = time.time()
     tf_time = tf_end - tf_start
     print(y)
@@ -2430,15 +2475,15 @@ def main():
     coords = coords.squeeze()
     print(sci_pred_y)
 
-    #plt.subplot(4, 1, 1)
-    #plt.plot(x, y)
-    #plt.subplot(4, 1, 2)
-    #plt.plot(coords, pred_y)
-    #plt.subplot(4, 1, 3)
-    #plt.plot(coords, pred_y2)
-    #plt.subplot(4, 1, 4)
-    #plt.plot(coords, sci_pred_y)
-    #plt.show()
+    plt.subplot(4, 1, 1)
+    plt.plot(x, y)
+    plt.subplot(4, 1, 2)
+    plt.plot(coords, pred_y)
+    plt.subplot(4, 1, 3)
+    plt.plot(coords, pred_y2)
+    plt.subplot(4, 1, 4)
+    plt.plot(coords, sci_pred_y)
+    plt.show()
 
     print(np.abs(sci_pred_y, pred_y))
     print(tf_time, tf_time2, sci_time)
@@ -2446,32 +2491,50 @@ def main():
     print(tf_time2 / sci_time)
     '''
 
-    
+    '''
     # cublic spline intep 2d test here
     a = tf.range(73 * 80)
     a = tf.reshape(a, (73, 80))
     a = tf.cast(a, tf.float32)
-    coords = tf.random.uniform([40 * 56, 2], minval=0, maxval=72)
+    coords = tf.random.uniform([40 * 56, 2], minval=0, maxval=39)
     tf_start = time.time()
     result = cubic_spline_interpolation_2d(a, coords)
     tf_end = time.time()
     tf_time = tf_end - tf_start
     # print(result)
     print(tf_time)
-    
-
-
     '''
+
+    
     # cubic spline intep 3d test here
     a = tf.range(73 * 80 * 64)
     a = tf.reshape(a, (73, 80, 64))
     a = tf.cast(a, tf.float32)
-    coords = tf.random.uniform([4 * 5 * 40, 3], minval=0, maxval=63)
+    coords = tf.random.uniform([40 * 56 * 40, 3], minval=0, maxval=63)
     tf_start = time.time()
     result = cubic_spline_interpolation_3d(a, coords)
     tf_end = time.time()
     tf_time = tf_end - tf_start
     # print(result)
+    print(tf_time)
+    
+
+    '''
+    # cubic spline intep v3 test here
+    # cubic spline intep 1d test here
+    x = tf.range(50)
+    x = tf.cast(x, tf.float32)
+    y = tf.math.sin(x)
+    y = y[tf.newaxis,]
+    z = tf.math.cos(x)
+    z = z[tf.newaxis,]
+    coords = tf.range(0, 49, 0.1)
+    coords = tf.cast(coords, tf.float32)
+    tf_start = time.time()
+    y = tf.concat([y, z], axis=0)
+    pred_y = cubic_spline_interpolation_1d_3(y, coords)
+    tf_end = time.time()
+    tf_time = tf_end - tf_start
     print(tf_time)
     '''
 
