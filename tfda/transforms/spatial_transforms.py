@@ -235,6 +235,6 @@ if __name__ == "__main__":
         data_dict = MirrorTransform((0, 1, 2))(**data_dict)
         tf.print(
             data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
-        )  # (8, 40, 376, 376) (8, 20, 376, 376)
+        )  # (8, 2, 20, 376, 376) (8, 1, 20, 376, 376)
 
     tf.print("END")
