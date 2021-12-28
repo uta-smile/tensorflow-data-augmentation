@@ -1,7 +1,8 @@
 import tensorflow as tf
 
 # Others
-from tfda.base import TFDABase
+from tfda.base import TFDABase, TFT
+from tfda.utils import nan
 
 
 class SimulateLowResolutionTransform(TFDABase):
@@ -31,9 +32,20 @@ class SimulateLowResolutionTransform(TFDABase):
         order_upsample:
     """
 
-    def __init__(self, zoom_range=(0.5, 1), per_channel=False, p_per_channel=1,
-                 channels=None, order_downsample=1, order_upsample=0, data_key="data", p_per_sample=1,
-                 ignore_axes=None):
+    def __init__(
+        self,
+        zoom_range: TFT = (0.5, 1),
+        per_channel: TFT = False,
+        p_per_channel: TFT = 1.0,
+        channels: TFT = nan,
+        order_downsample: TFT = 1,
+        order_upsample: TFT = 0,
+        data_key: TFT = "data",
+        p_per_sample: TFT = 1.0,
+        ignore_axes: TFT = nan,
+        **kws
+    ):
+        super().__init__(**kws)
         self.order_upsample = order_upsample
         self.order_downsample = order_downsample
         self.channels = channels
@@ -45,28 +57,70 @@ class SimulateLowResolutionTransform(TFDABase):
         self.ignore_axes = ignore_axes
 
     def call(self, **data_dict):
-        data_list = []
-        for b in tf.range(len(data_dict[self.data_key])):
-            if tf.random.uniform(()) < self.p_per_sample:
-                data_b = augment_linear_downsampling_scipy(data_dict[self.data_key][b],
-                                                           zoom_range=self.zoom_range,
-                                                           per_channel=self.per_channel,
-                                                           p_per_channel=self.p_per_channel,
-                                                           channels=self.channels,
-                                                           order_downsample=self.order_downsample,
-                                                           order_upsample=self.order_upsample,
-                                                           ignore_axes=self.ignore_axes)
-            else:
-                data_b = data_dict[self.data_key][b]
-            data_list.append(data_b)
-        data_dict[self.data_key] = tf.stack(data_list)
+
+        data_dict[self.data_key] = tf.map_fn(
+            lambda xs: tf.cond(
+                tf.random.uniform(()) < self.p_per_sample,
+                lambda: augment_linear_downsampling_scipy(
+                    xs,
+                    zoom_range=self.zoom_range,
+                    per_channel=self.per_channel,
+                    p_per_channel=self.p_per_channel,
+                    channels=self.channels,
+                    order_downsample=self.order_downsample,
+                    order_upsample=self.order_upsample,
+                    ignore_axes=self.ignore_axes,
+                ),
+                lambda: xs,
+            ),
+            data_dict[self.data_key],
+        )
+
+        # data_list = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
+        # for b in tf.range(tf.shape(data_dict[self.data_key])[0]):
+        #     if tf.random.uniform(()) < self.p_per_sample:
+        #         data_b = augment_linear_downsampling_scipy(
+        #             data_dict[self.data_key][b],
+        #             zoom_range=self.zoom_range,
+        #             per_channel=self.per_channel,
+        #             p_per_channel=self.p_per_channel,
+        #             channels=self.channels,
+        #             order_downsample=self.order_downsample,
+        #             order_upsample=self.order_upsample,
+        #             ignore_axes=self.ignore_axes,
+        #         )
+        #     else:
+        #         data_b = data_dict[self.data_key][b]
+        #     data_list = data_list.write(b, data_b)
+        # data_dict[self.data_key] = data_list.stack()
         return data_dict
 
 
 @tf.function
-def augment_linear_downsampling_scipy(data_sample, zoom_range=(0.5, 1), per_channel=True, p_per_channel=1,
-                                      channels=None, order_downsample=1, order_upsample=0, ignore_axes=None):
-    '''
+def augment_liner_help(target_shape, dim, shp, ignore_axes):
+    return tf.map_fn(
+        lambda d: tf.cond(
+            tf.math.reduce_any(ignore_axes == d),
+            lambda: shp[tf.cast(d, tf.int64)],
+            # lambda: target_shape[tf.cast(d, tf.int64)],
+            lambda: target_shape[tf.cast(d, tf.int64)],
+        ),
+        tf.range(dim, dtype=tf.float32),
+    )
+
+
+@tf.function
+def augment_linear_downsampling_scipy(
+    data_sample: TFT,
+    zoom_range: TFT = (0.5, 1),
+    per_channel: TFT = True,
+    p_per_channel: TFT = 1.0,
+    channels: TFT = nan,
+    order_downsample: TFT = 1,
+    order_upsample: TFT = 0,
+    ignore_axes: TFT = nan,
+):
+    """
     Downsamples each sample (linearly) by a random factor and upsamples to original resolution again (nearest neighbor)
 
     Info:
@@ -93,46 +147,61 @@ def augment_linear_downsampling_scipy(data_sample, zoom_range=(0.5, 1), per_chan
 
         ignore_axes: tuple/list
 
-    '''
+    """
     # if not isinstance(zoom_range, (list, tuple)):
     #     zoom_range = [zoom_range]
     # data_sample.shape = [2 20 376 376]
-    shp = data_sample.shape[1:]  # [ 20 376 376]
+    shp = tf.shape(data_sample)[1:]  # [ 20 376 376]
     shp = tf.cast(shp, tf.float32)
-    dim = len(shp)  # 3
+    dim = tf.shape(shp)[0]  # 3
 
-    if channels is None:
-        channels = list(tf.range(data_sample.shape[0]))  # [0, 1]
+    if tf.math.reduce_any(tf.math.is_nan(channels)):
+        channels = tf.range(
+            tf.shape(data_sample)[0], dtype=tf.float32
+        )  # [0, 1]
 
-    data_sample_c_list = []
+    data_sample_c_list = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
+
     for c in channels:
         if tf.random.uniform(()) < p_per_channel:
             # zoom = uniform(zoom_range[0], zoom_range[1])
-            zoom = tf.random.uniform((), minval=zoom_range[0], maxval=zoom_range[1])  # 0.8637516095857263
+            zoom = tf.random.uniform(
+                (), minval=zoom_range[0], maxval=zoom_range[1]
+            )  # 0.8637516095857263
 
             target_shape = tf.round(shp * zoom)
             # target_shape = tf.cast(target_shape, tf.int32)  # [ 17 325 325]
 
-            if ignore_axes is not None:  # ignore_axes = 0
-                target_shape_list = []
+            target_shape_list = tf.TensorArray(
+                tf.float32, size=tf.size(target_shape)
+            )
+            target_shape_list = target_shape_list.unstack(target_shape)
+            if not tf.math.reduce_any(
+                tf.math.is_nan(tf.cast(ignore_axes, tf.float32))
+            ):  # ignore_axes = 0
                 for i in tf.range(dim):
-                    condition = i in ignore_axes
+                    condition = tf.math.reduce_any(
+                        ignore_axes == tf.cast(i, tf.float32)
+                    )
                     case_true = shp[i]
                     case_false = target_shape[i]
                     target_shape_i = tf.where(condition, case_true, case_false)
-                    target_shape_list.append(target_shape_i)
-                target_shape = tf.stack(target_shape_list)
-
-            # downsampled = resize(data_sample[c].astype(float), target_shape, order=order_downsample, mode='edge',
-            #                      anti_aliasing=False)
-            # data_sample[c] = resize(downsampled, shp, order=order_upsample, mode='edge',
-            #                         anti_aliasing=False)
-            downsampled = volume_resize(data_sample[c], target_shape, method='nearest')
-            data_sample_c = volume_resize(downsampled, shp, method='bicubic')
+                    target_shape_list = target_shape_list.write(
+                        i, target_shape_i
+                    )
+                target_shape = target_shape_list.stack()
+            downsampled = volume_resize(
+                data_sample[tf.cast(c, tf.int64)],
+                target_shape,
+                method="nearest",
+            )
+            data_sample_c = volume_resize(downsampled, shp, method="bicubic")
         else:
-            data_sample_c = data_sample[c]
-        data_sample_c_list.append(data_sample_c)
-    data_sample = tf.stack(data_sample_c_list)
+            data_sample_c = data_sample[tf.cast(c, tf.int64)]
+        data_sample_c_list = data_sample_c_list.write(
+            tf.cast(c, tf.int32), data_sample_c
+        )
+    data_sample = data_sample_c_list.stack()
     return data_sample
 
 
@@ -146,14 +215,25 @@ def volume_resize(input_data, target_shape, method):
     return image
 
 
-
-
 if __name__ == "__main__":
-    images = tf.random.uniform((8, 2, 20, 376, 376))
-    labels = tf.random.uniform((8, 1, 20, 376, 376), minval=0, maxval=2, dtype=tf.int32)
-    data_dict = {'data': images, 'seg': labels}
-    print(data_dict.keys(), data_dict['data'].shape, data_dict['seg'].shape)  # (8, 2, 20, 376, 376) (8, 1, 20, 376, 376)
-    data_dict = SimulateLowResolutionTransform(zoom_range=(0.5, 1), per_channel=True, p_per_channel=0.5,
-                                               order_downsample=0, order_upsample=3, p_per_sample=0.25,
-                                               ignore_axes=(0,))(**data_dict)
-    print(data_dict.keys(), data_dict['data'].shape, data_dict['seg'].shape)  # (8, 40, 376, 376) (8, 20, 376, 376)
+    with tf.device("/CPU:0"):
+        images = tf.random.uniform((8, 2, 20, 376, 376))
+        labels = tf.random.uniform(
+            (8, 1, 20, 376, 376), minval=0, maxval=2, dtype=tf.int32
+        )
+        data_dict = {"data": images, "seg": labels}
+        tf.print(
+            data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
+        )  # (8, 2, 20, 376, 376) (8, 1, 20, 376, 376)
+        data_dict = SimulateLowResolutionTransform(
+            zoom_range=(0.5, 1),
+            per_channel=True,
+            p_per_channel=0.5,
+            order_downsample=0,
+            order_upsample=3,
+            p_per_sample=0.25,
+            ignore_axes=(0,),
+        )(**data_dict)
+        tf.print(
+            data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
+        )  # (8, 40, 376, 376) (8, 20, 376, 376)
