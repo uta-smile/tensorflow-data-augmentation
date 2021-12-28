@@ -719,6 +719,7 @@ class DataAugmentor:
         data["images"] = images
         data["labels"] = segs
         # return data
+        images, segs = tf.transpose(images, (0, 2, 3, 4, 1)), tf.transpose(segs, (0, 2, 3, 4, 1))
         return images, segs
 
 

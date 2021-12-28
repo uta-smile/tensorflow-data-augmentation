@@ -151,12 +151,12 @@ class MaskTransform(TFDABase):
         #     )
         data = data_dict.get(self.data_key)
         data_list = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
-        for b in tf.range(data.shape[0]):
+        for b in tf.range(tf.shape(data)[0]):
             mask = seg[b, self.mask_idx_in_seg]
             channel_list = tf.TensorArray(
                 tf.float32, size=0, dynamic_size=True
             )
-            for c in tf.range(data.shape[1]):
+            for c in tf.range(tf.shape(data)[1]):
                 if tf.size(self.dct_for_where_it_was_used[c]) > 0:
                     # data[b, c][mask < 0] = self.set_outside_to
 

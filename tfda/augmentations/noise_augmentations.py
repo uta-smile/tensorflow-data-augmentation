@@ -73,7 +73,7 @@ def augment_gaussian_noise(
             tf.random.uniform(()) < p_per_channel,
             lambda: x
             + tf.random.normal(
-                x.shape,
+                tf.shape(x),
                 0,
                 tf.cond(
                     to_tf_bool(variance is not None),

@@ -372,7 +372,7 @@ def augment_mirroring(sample_data: TFT, sample_seg: TFT = nan, axes: Tuple[int, 
         sample_data = sample_data[:, :, ::-1]
         if not tf.reduce_any(tf.math.is_nan(sample_seg)):
             sample_seg = sample_seg[:, :, ::-1]
-    if 2 in axes and len(sample_data.shape) == 4:
+    if 2 in axes and tf.rank(sample_data) == 4:
         if tf.random.uniform(()) < 0.5:
             sample_data = sample_data[:, :, :, ::-1]
             if not tf.reduce_any(tf.math.is_nan(sample_seg)):

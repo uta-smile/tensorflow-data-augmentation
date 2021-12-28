@@ -168,12 +168,6 @@ class MirrorTransform(TFDABase):
     def __init__(self, axes: Tuple[int, ...] = (0, 1, 2), **kws):
         super().__init__(**kws)
         self.axes = axes
-        if tf.reduce_max(axes) > 2:
-            raise ValueError(
-                "MirrorTransform now takes the axes as the spatial dimensions. What previously was "
-                "axes=(2, 3, 4) to mirror along all spatial dimensions of a 5d tensor (b, c, x, y, z) "
-                "is now axes=(0, 1, 2). Please adapt your scripts accordingly."
-            )
 
     def call(self, **data_dict: TFT) -> DTFT:
         data = data_dict.get(self.data_key, nan)

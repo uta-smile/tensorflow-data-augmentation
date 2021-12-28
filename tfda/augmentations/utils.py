@@ -41,8 +41,21 @@ import tensorflow as tf
 # Others
 # tf.debugging.set_log_device_placement(True)
 from tfda.base import TFT
-from tfda.utils import TFbF, TFbT, TFf0, to_tf_bool, to_tf_float, to_tf_int
+from tfda.utils import TFbF, TFbT, TFf0, to_tf_bool, to_tf_float, to_tf_int, nan
 
+
+@tf.function(experimental_follow_type_hints=True)
+def to_one_hot(seg: TFT, all_seg_labels: TFT = nan):
+    if tf.math.reduce_any(tf.math.is_nan(all_seg_labels)):
+        all_seg_labels, _ = tf.unique(tf.reshape(seg, (-1,)))
+    
+    nseg = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
+    for s in tf.range(tf.shape(seg)[0]):
+        result = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
+        for i in tf.range(tf.size(all_seg_labels)):
+            result = result.write(i, tf.where(seg[s] == all_seg_labels[i], 1., 0.))
+        nseg = nseg.write(s, result.stack())
+    return nseg.stack()
 
 
 @tf.function(experimental_follow_type_hints=True)
@@ -296,9 +309,9 @@ if __name__ == "__main__":
     patch_size = tf.constant([20, 376, 376])
 
     with tf.device("/CPU:0"):
-        coords = create_zero_centered_coordinate_mesh(patch_size)
+        # coords = create_zero_centered_coordinate_mesh(patch_size)
 
-        tf.print(elastic_deform_coordinates(coords, 50., 12.).shape)
+        # tf.print(elastic_deform_coordinates(coords, 50., 12.).shape)
         # assert elastic_deform_coordinates(coords, 50, 12).shape == [
         #     3,
         #     40,
@@ -306,13 +319,15 @@ if __name__ == "__main__":
         #     40,
         # ]
 
-        xs = tf.random.uniform(patch_size, 0, 1)
+        # xs = tf.random.uniform(patch_size, 0, 1)
         # s = xs.shape
         # tf.print(xs.shape)
-        x = gaussian_filter(xs, 5, "reflect")
-        tf.print("\n\n", x[0][0], "\n", x.shape, x[0].shape)
-        x_ = sf.gaussian_filter(xs, 5, mode="reflect")
-        tf.print("----\n", x_[0][0], "\n", x_.shape, x_[0].shape)
+        # x = gaussian_filter(xs, 5, "reflect")
+        # tf.print("\n\n", x[0][0], "\n", x.shape, x[0].shape)
+        # x_ = sf.gaussian_filter(xs, 5, mode="reflect")
+        # tf.print("----\n", x_[0][0], "\n", x_.shape, x_[0].shape)
 
-        tf.print("----------")
-        tf.print(rotate_coords_3d(coords, 1.0, 1.0, 1.0).shape)
+        # tf.print("----------")
+        # tf.print(rotate_coords_3d(coords, 1.0, 1.0, 1.0).shape)
+        
+        tf.print(to_one_hot(tf.zeros([9, 40, 56, 40]), [1., 2, 3]).shape)
