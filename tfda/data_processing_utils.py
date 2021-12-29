@@ -217,10 +217,10 @@ def get_batch_size(final_patch_size, rot_x, rot_y, rot_z, scale_range):
 
 
 class DataAugmentor:
-    def __init__(self, plans_files, jsn) -> None:
+    def __init__(self, plans_files, jsn, plans = None) -> None:
         self.plans_file = plans_files
         self.jsn = jsn
-        self.plans = None
+        self.plans = plans
         self.threeD = None
         self.do_dummy_2D_aug = None
         self.use_mask_for_norm = None
@@ -234,7 +234,7 @@ class DataAugmentor:
         self.pseud_3d_slices = 1
 
     def initialize(self, training=True, force_load_plans_file=False):
-        if force_load_plans_file or self.plans is None:
+        if (force_load_plans_file or self.plans is None) and not self.plans:
             self.load_plans_file()  #  here not sure whether pickle can be used in the tpu
         self.process_plans(self.plans)
 
@@ -2196,7 +2196,7 @@ def thomas_algorithm(A, B, C, D):
 
 
 def main():
-    
+
     # chunk spline intp test here
     patch_size = [40, 56, 40]
     patch_center_dist_from_border = [30, 30, 30]
@@ -2207,7 +2207,7 @@ def main():
     print(seg)
     print(data.shape)
     print(seg.shape)
-    
+
     '''
     # cubic spline intep 1d test here
     x = tf.range(50)
