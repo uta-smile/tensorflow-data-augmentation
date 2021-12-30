@@ -115,22 +115,22 @@ class GaussianBlurTransform(TFDABase):
 
 if __name__ == "__main__":
     with tf.device("/CPU:0"):
-        dataset = next(
-            iter(
-                tf.data.Dataset.range(
-                    8 * 1 * 1 * 40 * 56 * 40, output_type=tf.float32
-                )
-                .batch(40)
-                .batch(56)
-                .batch(40)
-                .batch(1)
-                .batch(2)
-                .prefetch(4)
-            )
-        )
-        t = GaussianNoiseTransform(p_per_sample=0.3)
+        # dataset = next(
+        #     iter(
+        #         tf.data.Dataset.range(
+        #             8 * 1 * 1 * 40 * 56 * 40, output_type=tf.float32
+        #         )
+        #         .batch(40)
+        #         .batch(56)
+        #         .batch(40)
+        #         .batch(1)
+        #         .batch(2)
+        #         .prefetch(4)
+        #     )
+        # )
+        # t = GaussianNoiseTransform(p_per_sample=0.3)
 
-        tf.print(t(dict(data=dataset))["data"].shape)
+        # tf.print(t(dict(data=dataset))["data"].shape)
 
         images = tf.random.uniform((8, 2, 20, 376, 376))
         labels = tf.random.uniform(
@@ -157,8 +157,8 @@ if __name__ == "__main__":
             data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
         )  # (8, 40, 376, 376) (8, 20, 376, 376)
         print(time.time())
-        data_dict = gbt(dict(data=images, seg=labels))
-        tf.print(
-            data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
-        )  # (8, 40, 376, 376) (8, 20, 376, 376)
-        print(time.time())
+        # data_dict = gbt(dict(data=images, seg=labels))
+        # tf.print(
+        #     data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
+        # )  # (8, 40, 376, 376) (8, 20, 376, 376)
+        # tf.print(time.time())

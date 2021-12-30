@@ -60,13 +60,32 @@ def to_one_hot(seg: TFT, all_seg_labels: TFT = nan):
 
 @tf.function(experimental_follow_type_hints=True)
 def get_range_val(value: TFT, rnd_type: TFT = "uniform"):
+    # TODO: different rank values
+
+    # return tf.case(
+    #     [
+    #         (tf.equal(tf.rank(value), 0), lambda: value),
+    #         (tf.equal(tf.shape(value)[0], 1), lambda: value[0]),
+    #         (tf.equal(value[0], value[1]), lambda: value[0]),
+    #         (
+    #             tf.equal(tf.shape(value)[0], 2) and tf.equal(rnd_type, "uniform"),
+    #             lambda: tf.random.uniform(
+    #                 (), minval=value[0], maxval=value[1], dtype=tf.float32
+    #             ),
+    #         ),
+    #         (
+    #             tf.equal(rnd_type, "normal"),
+    #             lambda: tf.random.normal(
+    #                 (), mean=value[0], stddev=value[1], dtype=tf.float32
+    #             ),
+    #         ),
+    #     ],
+    #     (lambda: value)
+    # )
     return tf.case(
         [
-            (tf.equal(tf.rank(value), 0), lambda: value),
-            (tf.equal(tf.shape(value)[0], 1), lambda: value[0]),
-            (tf.equal(value[0], value[1]), lambda: value[0]),
             (
-                tf.equal(rnd_type, "uniform"),
+                tf.equal(tf.shape(value)[0], 2) and tf.equal(rnd_type, "uniform"),
                 lambda: tf.random.uniform(
                     (), minval=value[0], maxval=value[1], dtype=tf.float32
                 ),
@@ -309,6 +328,7 @@ if __name__ == "__main__":
     patch_size = tf.constant([20, 376, 376])
 
     with tf.device("/CPU:0"):
+        tf.print(get_range_val([0, 1.]))
         # coords = create_zero_centered_coordinate_mesh(patch_size)
 
         # tf.print(elastic_deform_coordinates(coords, 50., 12.).shape)
@@ -330,4 +350,4 @@ if __name__ == "__main__":
         # tf.print("----------")
         # tf.print(rotate_coords_3d(coords, 1.0, 1.0, 1.0).shape)
 
-        tf.print(to_one_hot(tf.zeros([9, 40, 56, 40]), [1., 2, 3]).shape)
+        # tf.print(to_one_hot(tf.zeros([9, 40, 56, 40]), [1., 2, 3]).shape)

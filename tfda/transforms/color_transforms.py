@@ -211,32 +211,32 @@ if __name__ == "__main__":
     # Others
     from tfda.base import Compose
 
-    ts = Compose(
-        [
-            ContrastAugmentationTransform(),
-            BrightnessTransform(0, 0.1),
-            BrightnessMultiplicativeTransform(
-                multiplier_range=(0.75, 1.25), p_per_sample=0.2
-            ),
-        ]
-    )
+    # ts = Compose(
+    #     [
+    #         ContrastAugmentationTransform(),
+    #         BrightnessTransform(0, 0.1),
+    #         BrightnessMultiplicativeTransform(
+    #             multiplier_range=(0.75, 1.25), p_per_sample=0.2
+    #         ),
+    #     ]
+    # )
 
     with tf.device("/CPU:0"):
-        tf.print(ts(dict(data=data_sample))["data"].shape)
+        # tf.print(ts(dict(data=data_sample))["data"].shape)
 
         images = tf.random.uniform((8, 2, 20, 376, 376))
         labels = tf.random.uniform(
             (8, 1, 20, 376, 376), minval=0, maxval=2, dtype=tf.int32
         )
         data_dict = {"data": images, "seg": labels}
-        print(
+        tf.print(
             data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
         )  # (8, 2, 20, 376, 376) (8, 1, 20, 376, 376)
         data_dict = GammaTransform(
             (0.7, 1.5), True, True, retain_stats=True, p_per_sample=0.1
         )(data_dict)
-        print(
+        tf.print(
             data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
         )  # (8, 40, 376, 376) (8, 20, 376, 376)
 
-        tf.print(ts)
+        # tf.print(ts)

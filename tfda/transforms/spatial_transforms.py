@@ -216,10 +216,10 @@ if __name__ == "__main__":
 
     sa = SpatialTransform(tf.cast([40, 56, 40], tf.int64), random_crop=TFbF)
 
+    # mirrored_strategy = tf.distribute.MirroredStrategy()
+    # with mirrored_strategy.scope():
     with tf.device("/CPU:0"):
-        # mirrored_strategy = tf.distribute.MirroredStrategy()
-        # with mirrored_strategy.scope():
-        # tf.print(sa(data=data_sample, seg=seg_sample))
+        tf.print(sa(dict(data=data_sample, seg=seg_sample)))
 
         images = tf.random.uniform((8, 2, 20, 376, 376))
         labels = tf.random.uniform(
