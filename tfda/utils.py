@@ -68,3 +68,9 @@ def to_tf_float(x: Any) -> tf.Tensor:
 def to_tf_int(x: Any) -> tf.Tensor:
     """Convert python bool to tf int64."""
     return tf.cast(x, tf.int64)
+
+
+@tf.function(experimental_follow_type_hints=True)
+def isnan(x: tf.Tensor) -> tf.Tensor:
+    """Check if there is any nan in it."""
+    return tf.math.reduce_any(tf.math.is_nan(x))
