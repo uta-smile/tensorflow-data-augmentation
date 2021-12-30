@@ -57,7 +57,7 @@ class DataChannelSelectionTransform(TFDABase):
             lambda i: data_dict[self.data_key][:, to_tf_int(i)], self.channels
         )
 
-        shape = data.shape
+        shape = tf.shape(data)
 
         data_dict[self.data_key] = tf.reshape(
             data, (shape[1], shape[0], *shape[2:])
@@ -97,12 +97,12 @@ class SegChannelSelectionTransform(TFDABase):
         else:
             # TODO: keep_discarded
             # if self.keep_discarded:
-            shape = seg.shape[2:]
+            shape = tf.shape(seg)[2:]
             seg = tf.map_fn(
                 lambda i: seg[:, to_tf_int(i)],
                 self.channels,
             )
-            seg = tf.reshape(seg, (seg.shape[1], seg.shape[0], *shape))
+            seg = tf.reshape(seg, (tf.shape(seg)[1], tf.shape(seg)[0], *shape))
 
             data_dict[self.label_key] = seg
             # data_dict[self.label_key] = seg.map(

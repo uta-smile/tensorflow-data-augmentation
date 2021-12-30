@@ -51,13 +51,13 @@ def convert_2d_to_3d_generator(**data_dict):
     # return data_dict_copy
 
     shp = data_dict["orig_shape_data"]
-    current_shape = data_dict["data"].shape
+    current_shape = tf.shape(data_dict["data"])
     data_dict["data"] = tf.reshape(
         data_dict["data"],
         (shp[0], shp[1], shp[2], current_shape[-2], current_shape[-1]),
     )
     shp = data_dict["orig_shape_seg"]
-    current_shape_seg = data_dict["seg"].shape
+    current_shape_seg = tf.shape(data_dict["seg"])
     data_dict["seg"] = tf.reshape(
         data_dict["seg"],
         (shp[0], shp[1], shp[2], current_shape_seg[-2], current_shape_seg[-1]),

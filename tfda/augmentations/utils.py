@@ -48,7 +48,7 @@ from tfda.utils import TFbF, TFbT, TFf0, to_tf_bool, to_tf_float, to_tf_int, nan
 def to_one_hot(seg: TFT, all_seg_labels: TFT = nan):
     if tf.math.reduce_any(tf.math.is_nan(all_seg_labels)):
         all_seg_labels, _ = tf.unique(tf.reshape(seg, (-1,)))
-    
+
     nseg = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
     for s in tf.range(tf.shape(seg)[0]):
         result = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
@@ -101,7 +101,7 @@ def create_zero_centered_coordinate_mesh(shape: TFT) -> TFT:
     return tf.map_fn(
         lambda i: coords[to_tf_int(i)]
         - ((to_tf_float(shape) - 1) / 2)[to_tf_int(i)],
-        tf.range(coords.shape[0], dtype=tf.float32),
+        tf.range(tf.shape(coords)[0], dtype=tf.float32),
     )
 
 
@@ -329,5 +329,5 @@ if __name__ == "__main__":
 
         # tf.print("----------")
         # tf.print(rotate_coords_3d(coords, 1.0, 1.0, 1.0).shape)
-        
+
         tf.print(to_one_hot(tf.zeros([9, 40, 56, 40]), [1., 2, 3]).shape)
