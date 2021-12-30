@@ -10,9 +10,12 @@ import os
 import pickle
 import time
 from copy import deepcopy
+from typing import Tuple
 
 import tensorflow as tf
+from tensorflow.python.ops.gen_math_ops import truncate_div
 from tfda.utils import pi, TFbT, TFbF
+from tfda.base import DTFT, TFT
 
 # Others
 import tensorflow_addons as tfa
@@ -245,6 +248,7 @@ class DataAugmentor:
             self.plans = pickle.load(f)
 
     def transform_fn(self, dataset, input_context):
+        self.batch_size = 1
         dataset = dataset.batch(self.batch_size, drop_remainder=True)
         dataset = dataset.map(self.formalize_data_3d, num_parallel_calls=tf.data.experimental.AUTOTUNE)
         return dataset
@@ -505,10 +509,11 @@ class DataAugmentor:
         )
         '''
         return tf.greater_equal(tf.cast(batch_idx, tf.float64), tf.round(
-            tf.constant(self.batch_size * (1 - self.oversample_foregroung_percent))
-        ))
+            self.batch_size * (tf.cast(1, tf.float64) - self.oversample_foregroung_percent))
+        )
 
-    def formalize_data_3d(self, data):
+    @tf.function(experimental_follow_type_hints=True)
+    def formalize_data_3d(self, data: DTFT) -> Tuple[TFT, TFT]:
 
         def process_batch(ii):
             i = tf.cast(ii, tf.int64)
@@ -741,8 +746,8 @@ class DataAugmentor:
         images = results[:, 0]
         segs = results[:, 1]
         # assert data is None, f'{images}'
-        data["images"] = images
-        data["labels"] = segs
+        # data["images"] = images
+        # data["labels"] = segs
         # return data
         images, segs = tf.transpose(images, (0, 2, 3, 4, 1)), tf.transpose(segs, (0, 2, 3, 4, 1))
         return images, segs
