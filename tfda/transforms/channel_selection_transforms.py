@@ -79,8 +79,10 @@ class SegChannelSelectionTransform(TFDABase):
         self.channels = channels
         self.keep_discarded = keep_discarded
 
+    @tf.function(experimental_follow_type_hints=True)
     def call(self, data_dict: DTFT) -> DTFT:
         """Call the transform."""
+        data_dict = data_dict.copy()
         seg = data_dict.get(self.label_key, nan)
 
         if tf.math.reduce_any(tf.math.is_nan(seg)):

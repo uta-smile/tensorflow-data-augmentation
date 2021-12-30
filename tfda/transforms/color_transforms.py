@@ -67,8 +67,10 @@ class ContrastAugmentationTransform(ColorTrans):
     # p_per_sample: float = 1
     # p_per_channel: float = 1
 
+    @tf.function(experimental_follow_type_hints=True)
     def call(self, data_dict: DTFT) -> DTFT:
         """Call the transform."""
+        data_dict = data_dict.copy()
         data_dict[self.data_key] = tf.map_fn(
             lambda x: tf.cond(
                 tf.random.uniform(()) < self.p_per_sample,
@@ -101,8 +103,10 @@ class BrightnessTransform(ColorTrans):
         self.sigma = to_tf_float(sigma)
         self.per_channel = to_tf_bool(per_channel)
 
+    @tf.function(experimental_follow_type_hints=True)
     def call(self, data_dict: DTFT) -> DTFT:
         """Call the transform."""
+        data_dict = data_dict.copy()
         data_dict[self.data_key] = tf.map_fn(
             lambda x: tf.cond(
                 tf.random.uniform(()) < self.p_per_sample,
@@ -128,8 +132,10 @@ class BrightnessMultiplicativeTransform(ColorTrans):
     # data_key: str = "data"
     # p_per_sample: float = 1
 
+    @tf.function(experimental_follow_type_hints=True)
     def call(self, data_dict: DTFT) -> DTFT:
         """Call the transform."""
+        data_dict = data_dict.copy()
         data_dict[self.data_key] = tf.map_fn(
             lambda x: tf.cond(
                 tf.random.uniform(()) < self.p_per_sample,
@@ -175,8 +181,11 @@ class GammaTransform(TFDABase):
         self.invert_image = invert_image
         self.per_channel = per_channel
 
+
+    @tf.function(experimental_follow_type_hints=True)
     def call(self, data_dict: DTFT) -> DTFT:
         """Call the transform."""
+        data_dict = data_dict.copy()
         data_dict[self.data_key] = tf.map_fn(
             lambda x: tf.cond(
                 tf.random.uniform(()) < self.p_per_sample,
@@ -211,18 +220,18 @@ if __name__ == "__main__":
     # Others
     from tfda.base import Compose
 
-    # ts = Compose(
-    #     [
-    #         ContrastAugmentationTransform(),
-    #         BrightnessTransform(0, 0.1),
-    #         BrightnessMultiplicativeTransform(
-    #             multiplier_range=(0.75, 1.25), p_per_sample=0.2
-    #         ),
-    #     ]
-    # )
+    ts = Compose(
+        [
+            ContrastAugmentationTransform(),
+            BrightnessTransform(0, 0.1),
+            BrightnessMultiplicativeTransform(
+                multiplier_range=(0.75, 1.25), p_per_sample=0.2
+            ),
+        ]
+    )
 
     with tf.device("/CPU:0"):
-        # tf.print(ts(dict(data=data_sample))["data"].shape)
+        tf.print(ts(dict(data=data_sample))["data"].shape)
 
         images = tf.random.uniform((8, 2, 20, 376, 376))
         labels = tf.random.uniform(

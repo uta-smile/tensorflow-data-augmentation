@@ -36,37 +36,45 @@ license  : GPL-3.0+
 Noise Augmentations
 """
 
+from typing import Tuple
 import tensorflow as tf
 
 # Others
+# tf.debugging.set_log_device_placement(True)
 from tfda.augmentations.utils import gaussian_filter, get_range_val
 from tfda.base import TFT
-from tfda.utils import TFbF, TFbT, TFf1, to_tf_bool
+from tfda.utils import TFbF, TFbT, TFf1, nan, to_tf_float
 
 
 @tf.function(experimental_follow_type_hints=True)
-def gn_var_fn(noise_variance: TFT) -> tf.Tensor:
+def gn_var_fn(noise_variance: Tuple[float, float]) -> tf.Tensor:
     """Gaussian noise variance fn."""
-    return tf.cond(
-        to_tf_bool(noise_variance[0] == noise_variance[1]),
-        lambda: tf.cast(noise_variance[0], dtype=tf.float32),
-        lambda: tf.random.uniform((), noise_variance[0], noise_variance[1]),
-    )
+    # TODO: solve Skipping loop optimization issue
+    # mean, std = noise_variance
+    # mean, std = tf.constant(mean, tf.float32), tf.constant(std, tf.float32)
+    # return tf.cond(
+    #     tf.equal(mean, std),
+    #     lambda: mean,
+    #     lambda: tf.random.uniform((), mean, std),
+    # )
+    return tf.random.uniform((), noise_variance[0], noise_variance[1])
 
 
 @tf.function(experimental_follow_type_hints=True)
 def augment_gaussian_noise(
     data_sample: tf.Tensor,
-    noise_variance: tf.Tensor = (0, 0.1),
+    noise_variance: Tuple[float, float] = (0, 0.1),
     p_per_channel: tf.Tensor = TFf1,
-    per_channel: tf.bool = TFbF,
+    per_channel: tf.Tensor = TFbF,
 ) -> tf.Tensor:
     """Apply gaussian noise on tf Tensor."""
-    variance = tf.cond(
-        to_tf_bool(not per_channel),
-        lambda: gn_var_fn(noise_variance),
-        lambda: tf.cast([], tf.float32),
-    )
+    # TODO: solve Skipping loop optimization issue
+    # variance = tf.cond(
+    #     not per_channel,
+    #     lambda: gn_var_fn(noise_variance),
+    #     lambda: nan,
+    # )
+    variance = gn_var_fn(noise_variance)
 
     return tf.map_fn(
         lambda x: tf.cond(
@@ -76,7 +84,7 @@ def augment_gaussian_noise(
                 tf.shape(x),
                 0,
                 tf.cond(
-                    to_tf_bool(variance is not None),
+                    not tf.reduce_any(tf.math.is_nan(variance)),
                     lambda: variance,
                     lambda: gn_var_fn(noise_variance),
                 ),
@@ -125,4 +133,5 @@ if __name__ == "__main__":
 
     with tf.device("/CPU:0"):
         # https://github.com/tensorflow/tensorflow/issues/49202
-        print(augment_gaussian_noise(datasample))
+        tf.print(augment_gaussian_noise(datasample))
+        # tf.print(gn_var_fn((0, 0.1)))

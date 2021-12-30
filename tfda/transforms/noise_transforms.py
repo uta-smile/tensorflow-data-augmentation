@@ -42,6 +42,7 @@ import tensorflow as tf
 from typing import Optional, Tuple
 
 # Others
+# tf.debugging.set_log_device_placement(True)
 from tfda.augmentations.noise_augmentations import (
     augment_gaussian_blur,
     augment_gaussian_noise
@@ -65,8 +66,10 @@ class GaussianNoiseTransform(TFDABase):
     CAREFUL: This transform will modify the value range of your data!
     """
 
+    @tf.function(experimental_follow_type_hints=True)
     def call(self, data_dict: DTFT) -> DTFT:
         """Call the transform."""
+        data_dict = data_dict.copy()
         data_dict[self.data_key] = tf.map_fn(
             lambda x: tf.cond(
                 tf.random.uniform(()) < self.p_per_sample,
@@ -95,8 +98,11 @@ class GaussianBlurTransform(TFDABase):
         self.different_sigma_per_channel = different_sigma_per_channel
         self.blur_sigma = blur_sigma
 
-    def call(self, data_dict: DTFT) -> DTFT:
 
+    @tf.function(experimental_follow_type_hints=True)
+    def call(self, data_dict: DTFT) -> DTFT:
+        """Call the transform."""
+        data_dict = data_dict.copy()
         data_dict[self.data_key] = tf.map_fn(
             lambda x: tf.cond(
                 tf.less(tf.random.uniform(()), self.p_per_sample),
@@ -115,22 +121,23 @@ class GaussianBlurTransform(TFDABase):
 
 if __name__ == "__main__":
     with tf.device("/CPU:0"):
-        # dataset = next(
-        #     iter(
-        #         tf.data.Dataset.range(
-        #             8 * 1 * 1 * 40 * 56 * 40, output_type=tf.float32
-        #         )
-        #         .batch(40)
-        #         .batch(56)
-        #         .batch(40)
-        #         .batch(1)
-        #         .batch(2)
-        #         .prefetch(4)
-        #     )
-        # )
-        # t = GaussianNoiseTransform(p_per_sample=0.3)
+        dataset = next(
+            iter(
+                tf.data.Dataset.range(
+                    8 * 1 * 40 * 56 * 40, output_type=tf.float32,
+                )
+                .batch(40)
+                .batch(56)
+                .batch(40)
+                .batch(2)
+                .batch(4)
+                .prefetch(4)
+            )
+        )
+        data_dict = dict(data=dataset)
+        t = GaussianNoiseTransform(p_per_sample=1.)
 
-        # tf.print(t(dict(data=dataset))["data"].shape)
+        tf.print(t(data_dict)["data"].shape)
 
         images = tf.random.uniform((8, 2, 20, 376, 376))
         labels = tf.random.uniform(

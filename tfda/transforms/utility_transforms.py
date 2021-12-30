@@ -19,7 +19,9 @@ class RemoveLabelTransform(TFDABase):
         self.replace_with = replace_with
         self.remove_label = remove_label
 
+    @tf.function(experimental_follow_type_hints=True)
     def call(self, data_dict: DTFT) -> DTFT:
+        data_dict = data_dict.copy()
         seg = data_dict[self.input_key]
         condition = tf.equal(seg, self.remove_label)
         case_true = tf.zeros(tf.shape(data_dict["seg"]))  # self.replace_with = 0
@@ -40,7 +42,9 @@ class RenameTransform(TFDABase):
         self.out_key = out_key
         self.in_key = in_key
 
+    @tf.function(experimental_follow_type_hints=True)
     def call(self, data_dict: DTFT) -> DTFT:
+        data_dict = data_dict.copy()
         data_dict[self.out_key] = data_dict[self.in_key]
         if self.delete_old:
             del data_dict[self.in_key]

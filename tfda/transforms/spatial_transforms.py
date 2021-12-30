@@ -40,6 +40,7 @@ from typing import Tuple
 import tensorflow as tf
 
 # Others
+# tf.debugging.set_log_device_placement(True)
 from tfda.augmentations.spatial_transformations import (
     augment_mirroring,
     augment_spatial,
@@ -107,7 +108,9 @@ class SpatialTransform(TFDABase):
         self.p_rot_per_axis = p_rot_per_axis
         self.p_independent_scale_per_axis = p_independent_scale_per_axis
 
+    @tf.function(experimental_follow_type_hints=True)
     def call(self, data_dict: DTFT) -> DTFT:
+        data_dict = data_dict.copy()
         data = data_dict.get(self.data_key, nan)
         seg = data_dict.get(self.label_key, nan)
 
@@ -167,11 +170,14 @@ class MirrorTransform(TFDABase):
 
     """
 
-    def __init__(self, axes: Tuple[int, ...] = (0, 1, 2), **kws):
+    def __init__(self, axes: TFT = (0, 1, 2), **kws):
         super().__init__(**kws)
+        axes = tf.cast(axes, tf.int64)
         self.axes = axes
 
+    @tf.function(experimental_follow_type_hints=True)
     def call(self, data_dict: DTFT) -> DTFT:
+        data_dict = data_dict.copy()
         data = data_dict.get(self.data_key, nan)
         seg = data_dict.get(self.label_key, nan)
 
@@ -197,6 +203,23 @@ class MirrorTransform(TFDABase):
         return data_dict
 
 
+@tf.function
+def test():
+    images = tf.random.uniform((8, 2, 20, 376, 376))
+    labels = tf.random.uniform(
+        (8, 1, 20, 376, 376), minval=0, maxval=2, dtype=tf.float32
+    )
+    data_dict = {"data": images, "seg": labels}
+    # tf.print(
+    #     data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
+    # )  # (8, 2, 20, 376, 376) (8, 1, 20, 376, 376)
+    data_dict = MirrorTransform((0, 1, 2))(dict(data=images, seg=labels))
+    # tf.print(
+    #     data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
+    # )  # (8, 2, 20, 376, 376) (8, 1, 20, 376, 376)
+    return data_dict
+
+
 if __name__ == "__main__":
     # dataset = (
     #     tf.data.Dataset.range(8 * 1 * 1 * 70 * 83 * 64, output_type=tf.float32)
@@ -220,18 +243,6 @@ if __name__ == "__main__":
     # with mirrored_strategy.scope():
     with tf.device("/CPU:0"):
         tf.print(sa(dict(data=data_sample, seg=seg_sample)))
+        tf.print(test()["data"].shape)
 
-        images = tf.random.uniform((8, 2, 20, 376, 376))
-        labels = tf.random.uniform(
-            (8, 1, 20, 376, 376), minval=0, maxval=2, dtype=tf.float32
-        )
-        data_dict = {"data": images, "seg": labels}
-        tf.print(
-            data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
-        )  # (8, 2, 20, 376, 376) (8, 1, 20, 376, 376)
-        data_dict = MirrorTransform((0, 1, 2))(dict(data=images, seg=labels))
-        tf.print(
-            data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
-        )  # (8, 2, 20, 376, 376) (8, 1, 20, 376, 376)
-
-    tf.print("END")
+        tf.print("END")

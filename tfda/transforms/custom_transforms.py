@@ -5,11 +5,15 @@ from tfda.base import DTFT, TFDABase, TFT
 
 
 class Convert3DTo2DTransform(TFDABase):
-    def call(self, data_dict):
+
+    @tf.function(experimental_follow_type_hints=True)
+    def call(self, data_dict: DTFT):
         return convert_3d_to_2d_generator(data_dict)
 
 
-def convert_3d_to_2d_generator(data_dict):
+@tf.function(experimental_follow_type_hints=True)
+def convert_3d_to_2d_generator(data_dict: DTFT) -> DTFT:
+    data_dict = data_dict.copy()
     # data_dict_copy = {}
     # shp = data_dict['data'].shape
     # data_dict_copy['data'] = tf.reshape(data_dict['data'], (shp[0], shp[1] * shp[2], shp[3], shp[4]))
@@ -34,13 +38,14 @@ def convert_3d_to_2d_generator(data_dict):
 
 class Convert2DTo3DTransform(TFDABase):
 
-    def call(self, data_dict):
+    @tf.function(experimental_follow_type_hints=True)
+    def call(self, data_dict: DTFT) -> DTFT:
         return convert_2d_to_3d_generator(data_dict)
 
 
 # TODO: ERROR
-@tf.function
-def convert_2d_to_3d_generator(data_dict):
+@tf.function(experimental_follow_type_hints=True)
+def convert_2d_to_3d_generator(data_dict: DTFT) -> DTFT:
     # data_dict_copy = {}
     # shp = data_dict['orig_shape_data']
     # current_shape = data_dict['data'].shape
@@ -88,7 +93,9 @@ class ConvertSegmentationToRegionsTransform(TFDABase):
         self.seg_key = seg_key
         self.regions = regions
 
-    def call(self, data_dict):
+    @tf.function(experimental_follow_type_hints=True)
+    def call(self, data_dict: DTFT) -> DTFT:
+        data_dict = data_dict.copy()
         seg = data_dict.get(self.seg_key)
         num_regions = len(self.regions)
         if seg is not None:
@@ -146,8 +153,10 @@ class MaskTransform(TFDABase):
         self.set_outside_to = set_outside_to
         self.mask_idx_in_seg = mask_idx_in_seg
 
+    @tf.function(experimental_follow_type_hints=True)
     def call(self, data_dict: DTFT) -> DTFT :
         """Call the transform."""
+        data_dict = data_dict.copy()
         seg = data_dict.get(self.seg_key)
         # if seg is None or seg.shape[1] < self.mask_idx_in_seg:
         #     raise Warning(

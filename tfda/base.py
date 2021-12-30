@@ -41,7 +41,7 @@ from itertools import chain
 import tensorflow as tf
 
 # Types
-from typing import Dict, Iterable, Sequence, TypeVar, Union
+from typing import Dict, Iterable, Sequence, Tuple, TypeVar, Union
 
 TFT = tf.Tensor
 DTFT = Dict[str, tf.Tensor]
@@ -64,7 +64,7 @@ class TFDABase(tf.keras.layers.Layer):
         contrast_range: TFT = (0.75, 1.25),
         multiplier_range: TFT = (0.5, 2),
         preserve_range: TFT = True,
-        noise_variance: TFT = (0, 0.1),
+        noise_variance: Tuple[float, float] = (0, 0.1),
         different_sigma_per_channel: TFT = True,
         **kws,
     ) -> None:

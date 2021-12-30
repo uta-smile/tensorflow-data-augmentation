@@ -56,8 +56,10 @@ class SimulateLowResolutionTransform(TFDABase):
         self.zoom_range = zoom_range
         self.ignore_axes = ignore_axes
 
+    @tf.function(experimental_follow_type_hints=True)
     def call(self, data_dict: DTFT) -> DTFT:
         """Call the transform."""
+        data_dict = data_dict.copy()
         data_dict[self.data_key] = tf.map_fn(
             lambda xs: tf.cond(
                 tf.random.uniform(()) < self.p_per_sample,
