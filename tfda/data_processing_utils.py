@@ -2042,7 +2042,7 @@ def update_tf_channel(data, idx, update_value):
     new_data.set_shape(shape)
     return new_data
 
-@tf.function(jit_compile=True)
+@tf.function
 def cubic_spline_interpolation_3d(data, coords):
     x, y = tf.range(tf.shape(data)[0]), tf.range(tf.shape(coords)[0])
     x, y = tf.cast(x, tf.float32), tf.cast(y, tf.float32)
