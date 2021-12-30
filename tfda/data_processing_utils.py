@@ -499,9 +499,14 @@ class DataAugmentor:
         return image, seg
 
     def get_do_oversample(self, batch_idx):
-        return not batch_idx < round(
-            self.batch_size * (1 - self.oversample_foregroung_percent)
+        '''
+        return not batch_idx < tf.round(
+            tf.constant(self.batch_size * (1 - self.oversample_foregroung_percent))
         )
+        '''
+        return tf.greater_equal(tf.cast(batch_idx, tf.float64), tf.round(
+            tf.constant(self.batch_size * (1 - self.oversample_foregroung_percent))
+        ))
 
     def formalize_data_3d(self, data):
 
@@ -518,14 +523,23 @@ class DataAugmentor:
             # TPU doesn't support tf.int64 well, use tf.int64 directly.
             if label.dtype == tf.int64:
                 label = tf.cast(label, dtype=tf.int64)
-            class_locations = {}
-            for c in range(class_locations_bytes[i].shape[0]):
+            '''
+            class_locations = []
+            class_locations_len = []
+            for c in tf.range(tf.shape(class_locations_bytes[i])[0]):
                 class_locations_decode = tf.io.decode_raw(
                     class_locations_bytes[i][c], tf.int64
                 )
-                class_locations[c + 1] = tf.reshape(
+                class_locations_c = tf.reshape(
                     class_locations_decode, [class_locations_shape[i][c], -1]
                 )
+                class_locations.append(class_locations_c)
+                class_locations_len.append(class_locations_shape[i][c])
+            class_locations = tf.concat(class_locations, axis=0)
+            class_locations_len = tf.convert_to_tensor(class_locations_len)
+            '''
+            # assert class_locations_bytes is None, f'{}'
+            class_locations_types = tf.range(tf.shape(class_locations_bytes[i])[0])
             if self.get_do_oversample(i):
                 force_fg = True
             else:
@@ -577,6 +591,7 @@ class DataAugmentor:
                     [], minval=lb_z, maxval=ub_z + 1, dtype=tf.int64
                 )
             else:
+                '''
                 foreground_classes = [
                     c for c in class_locations.keys() if c != 0
                 ]
@@ -602,8 +617,18 @@ class DataAugmentor:
                             selected_voxel = random_choice(
                                 voxels_of_that_class, 0
                             )[0]
+                '''
 
-                if voxels_of_that_class is not None:
+                c = random_choice(class_locations_types, 0)[0]
+                class_locations_decode = tf.io.decode_raw(
+                    class_locations_bytes[i][c], tf.int64
+                )
+                class_locations = tf.reshape(
+                    class_locations_decode, [class_locations_shape[i][c], -1]
+                )
+                selected_voxel = random_choice(class_locations, 0)[0]
+
+                if selected_voxel is not None:
                     # selected_voxel = random_choice(voxels_of_that_class, 0)
                     # selected_voxel = voxels_of_that_class[0]
                     bbox_x_lb = tf.maximum(
