@@ -259,181 +259,8 @@ class DataAugmentor:
         ] = self.patch_size
         self.data_aug_param["num_cached_per_thread"] = 2
 
-    def get_do_oversample(self, batch_idx):
-        # return not batch_idx < round(self.batch_size * (1 - self.oversample_foregroung_percent))
-        return tf.greater_equal(tf.cast(batch_idx, tf.float32), tf.round(tf.cast(self.batch_size, tf.float32) * (tf.cast(1-self.oversample_foregroung_percent, tf.float32))))
-
-
     @tf.function(experimental_follow_type_hints=TFbT)
     def formalize_data_3d(self, data: DTFT) -> Tuple[TFT, TFT]:
-
-        def process_batch(ii):
-            i = tf.cast(ii, tf.int64)
-            zero = tf.constant(0, dtype=tf.int64)
-            image = tf.io.decode_raw(image_raw[i], tf.as_dtype(tf.float32))
-            label = tf.io.decode_raw(label_raw[i], tf.as_dtype(tf.float32))
-            original_image, original_label = tf.reshape(
-                image, original_image_size[i]
-            ), tf.reshape(label, original_label_size[i])
-            image = tf.cast(original_image, dtype=tf.float32)
-            label = tf.cast(original_label, dtype=tf.float32)
-            # TPU doesn't support tf.int64 well, use tf.int64 directly.
-            if label.dtype == tf.int64:
-                label = tf.cast(label, dtype=tf.int64)
-
-            # assert class_locations_bytes is nan, f'{}'
-            class_locations_types = tf.range(tf.shape(class_locations_bytes[i])[0])
-            if self.get_do_oversample(i):
-                force_fg = TFbT
-            else:
-                force_fg = TFbF
-            case_all_data = tf.concat([image, label], axis=0)
-            self.basic_generator_patch_size = tf.cast(
-                self.basic_generator_patch_size, dtype=tf.int64
-            )
-            self.patch_size = tf.cast(
-                self.patch_size, dtype=tf.int64
-            )
-            need_to_pad = self.basic_generator_patch_size - self.patch_size
-            def update_need_to_pad(need_to_pad, d):
-                need_to_pad_d = self.basic_generator_patch_size[d] - tf.shape(case_all_data, out_type=tf.int64)[d+1]
-                return tf.cond(tf.less(need_to_pad[d]+tf.shape(case_all_data, out_type=tf.int64)[d+1], self.basic_generator_patch_size[d]), lambda: need_to_pad_d, lambda: need_to_pad[d])
-            need_to_pad = tf.map_fn(lambda d: update_need_to_pad(need_to_pad, d), elems=tf.range(3, dtype=tf.int64))
-            need_to_pad = tf.cast(need_to_pad, tf.int64)
-            shape = tf.shape(case_all_data, out_type=tf.int64)[1:]
-            lb_x = -need_to_pad[0] // 2
-            ub_x = (
-                shape[0]
-                + need_to_pad[0] // 2
-                + need_to_pad[0] % 2
-                - self.basic_generator_patch_size[0]
-            )
-            lb_y = -need_to_pad[1] // 2
-            ub_y = (
-                shape[1]
-                + need_to_pad[1] // 2
-                + need_to_pad[1] % 2
-                - self.basic_generator_patch_size[1]
-            )
-            lb_z = -need_to_pad[2] // 2
-            ub_z = (
-                shape[2]
-                + need_to_pad[2] // 2
-                + need_to_pad[2] % 2
-                - self.basic_generator_patch_size[2]
-            )
-
-            if not force_fg:
-                bbox_x_lb = tf.random.uniform(
-                    [], minval=lb_x, maxval=ub_x + 1, dtype=tf.int64
-                )
-                bbox_y_lb = tf.random.uniform(
-                    [], minval=lb_y, maxval=ub_y + 1, dtype=tf.int64
-                )
-                bbox_z_lb = tf.random.uniform(
-                    [], minval=lb_z, maxval=ub_z + 1, dtype=tf.int64
-                )
-            else:
-
-                c = random_choice(class_locations_types, 0)[0]
-                class_locations_decode = tf.io.decode_raw(
-                    class_locations_bytes[i][c], tf.int64
-                )
-                class_locations = tf.reshape(
-                    class_locations_decode, [class_locations_shape[i][c], -1]
-                )
-                selected_voxel = random_choice(class_locations, 0)[0]
-
-                if selected_voxel is not nan:
-                    # selected_voxel = random_choice(voxels_of_that_class, 0)
-                    # selected_voxel = voxels_of_that_class[0]
-                    bbox_x_lb = tf.maximum(
-                        lb_x,
-                        selected_voxel[0]
-                        - self.basic_generator_patch_size[0] // 2,
-                    )
-                    bbox_y_lb = tf.maximum(
-                        lb_y,
-                        selected_voxel[1]
-                        - self.basic_generator_patch_size[1] // 2,
-                    )
-                    bbox_z_lb = tf.maximum(
-                        lb_z,
-                        selected_voxel[2]
-                        - self.basic_generator_patch_size[2] // 2,
-                    )
-                else:
-                    bbox_x_lb = tf.random.uniform(
-                        [], minval=lb_x, maxval=ub_x + 1, dtype=tf.int64
-                    )
-                    bbox_y_lb = tf.random.uniform(
-                        [], minval=lb_y, maxval=ub_y + 1, dtype=tf.int64
-                    )
-                    bbox_z_lb = tf.random.uniform(
-                        [], minval=lb_z, maxval=ub_z + 1, dtype=tf.int64
-                    )
-
-            bbox_x_ub = bbox_x_lb + self.basic_generator_patch_size[0]
-            bbox_y_ub = bbox_y_lb + self.basic_generator_patch_size[1]
-            bbox_z_ub = bbox_z_lb + self.basic_generator_patch_size[2]
-
-            valid_bbox_x_lb = tf.maximum(zero, bbox_x_lb)
-            valid_bbox_x_ub = tf.minimum(shape[0], bbox_x_ub)
-            valid_bbox_y_lb = tf.maximum(zero, bbox_y_lb)
-            valid_bbox_y_ub = tf.minimum(shape[1], bbox_y_ub)
-            valid_bbox_z_lb = tf.maximum(zero, bbox_z_lb)
-            valid_bbox_z_ub = tf.minimum(shape[2], bbox_z_ub)
-
-            case_all_data = tf.identity(
-                case_all_data[
-                    :,
-                    valid_bbox_x_lb:valid_bbox_x_ub,
-                    valid_bbox_y_lb:valid_bbox_y_ub,
-                    valid_bbox_z_lb:valid_bbox_z_ub,
-                ]
-            )
-
-            img = tf.pad(
-                case_all_data[:-1],
-                (
-                    [0, 0],
-                    [
-                        -tf.minimum(zero, bbox_x_lb),
-                        tf.maximum(bbox_x_ub - shape[0], zero),
-                    ],
-                    [
-                        -tf.minimum(zero, bbox_y_lb),
-                        tf.maximum(bbox_y_ub - shape[1], zero),
-                    ],
-                    [
-                        -tf.minimum(zero, bbox_z_lb),
-                        tf.maximum(bbox_z_ub - shape[2], zero),
-                    ],
-                ),
-                mode="CONSTANT",
-            )
-            seg = tf.pad(
-                case_all_data[-1:],
-                (
-                    [0, 0],
-                    [
-                        -tf.minimum(zero, bbox_x_lb),
-                        tf.maximum(bbox_x_ub - shape[0], zero),
-                    ],
-                    [
-                        -tf.minimum(zero, bbox_y_lb),
-                        tf.maximum(bbox_y_ub - shape[1], zero),
-                    ],
-                    [
-                        -tf.minimum(zero, bbox_z_lb),
-                        tf.maximum(bbox_z_ub - shape[2], zero),
-                    ],
-                ),
-                mode="CONSTANT",
-                constant_values=-1,
-            )
-            result = tf.stack([img, seg])
-            return result
 
         # main body begin here
         (
@@ -453,7 +280,9 @@ class DataAugmentor:
         original_image_size = tf.cast(data["image/shape"], dtype=tf.int64)
         original_label_size = tf.cast(data["label/shape"], dtype=tf.int64)
 
-        results = tf.map_fn(lambda i: process_batch(i), elems=tf.range(self.batch_size, dtype=tf.float32))
+        results = tf.map_fn(lambda i: process_batch(i, image_raw, original_image_size, original_label_size, label_raw, 
+                class_locations_bytes, class_locations_shape, self.basic_generator_patch_size, self.patch_size, self.batch_size, self.oversample_foregroung_percent), 
+                            elems=tf.range(self.batch_size, dtype=tf.float32))
         images = results[:, 0]
         segs = results[:, 1]
         # assert data is nan, f'{images}'
@@ -462,6 +291,180 @@ class DataAugmentor:
         # return data
         images, segs = tf.transpose(images, (0, 2, 3, 4, 1)), tf.transpose(segs, (0, 2, 3, 4, 1))
         return images, segs
+
+def get_do_oversample(batch_idx, batch_size, oversample_foregroung_percent):
+        # return not batch_idx < round(self.batch_size * (1 - self.oversample_foregroung_percent))
+        return tf.greater_equal(tf.cast(batch_idx, tf.float32), tf.round(tf.cast(batch_size, tf.float32) * (tf.cast(1-oversample_foregroung_percent, tf.float32))))
+
+def update_need_to_pad(need_to_pad, d, basic_generator_patch_size, case_all_data):
+        need_to_pad_d = basic_generator_patch_size[d] - tf.shape(case_all_data, out_type=tf.int64)[d+1]
+        return tf.cond(tf.less(need_to_pad[d]+tf.shape(case_all_data, out_type=tf.int64)[d+1], basic_generator_patch_size[d]), lambda: need_to_pad_d, lambda: need_to_pad[d])
+
+def process_batch(ii, image_raw, original_image_size, original_label_size, label_raw, 
+                class_locations_bytes, class_locations_shape, basic_generator_patch_size, patch_size, batch_size, oversample_foregroung_percent):
+    i = tf.cast(ii, tf.int64)
+    zero = tf.constant(0, dtype=tf.int64)
+    image = tf.io.decode_raw(image_raw[i], tf.as_dtype(tf.float32))
+    label = tf.io.decode_raw(label_raw[i], tf.as_dtype(tf.float32))
+    original_image, original_label = tf.reshape(
+        image, original_image_size[i]
+    ), tf.reshape(label, original_label_size[i])
+    image = tf.cast(original_image, dtype=tf.float32)
+    label = tf.cast(original_label, dtype=tf.float32)
+    # TPU doesn't support tf.int64 well, use tf.int64 directly.
+    if label.dtype == tf.int64:
+        label = tf.cast(label, dtype=tf.int64)
+
+    # assert class_locations_bytes is nan, f'{}'
+    class_locations_types = tf.range(tf.shape(class_locations_bytes[i])[0])
+    if get_do_oversample(i, batch_size, oversample_foregroung_percent):
+        force_fg = TFbT
+    else:
+        force_fg = TFbF
+    case_all_data = tf.concat([image, label], axis=0)
+    basic_generator_patch_size = tf.cast(
+        basic_generator_patch_size, dtype=tf.int64
+    )
+    patch_size = tf.cast(
+        patch_size, dtype=tf.int64
+    )
+    need_to_pad = basic_generator_patch_size - patch_size
+    need_to_pad = tf.map_fn(lambda d: update_need_to_pad(need_to_pad, d, basic_generator_patch_size, case_all_data), elems=tf.range(3, dtype=tf.int64))
+    need_to_pad = tf.cast(need_to_pad, tf.int64)
+    shape = tf.shape(case_all_data, out_type=tf.int64)[1:]
+    lb_x = -need_to_pad[0] // 2
+    ub_x = (
+        shape[0]
+        + need_to_pad[0] // 2
+        + need_to_pad[0] % 2
+        - basic_generator_patch_size[0]
+    )
+    lb_y = -need_to_pad[1] // 2
+    ub_y = (
+        shape[1]
+        + need_to_pad[1] // 2
+        + need_to_pad[1] % 2
+        - basic_generator_patch_size[1]
+    )
+    lb_z = -need_to_pad[2] // 2
+    ub_z = (
+        shape[2]
+        + need_to_pad[2] // 2
+        + need_to_pad[2] % 2
+        - basic_generator_patch_size[2]
+    )
+
+    if not force_fg:
+        bbox_x_lb = tf.random.uniform(
+            [], minval=lb_x, maxval=ub_x + 1, dtype=tf.int64
+        )
+        bbox_y_lb = tf.random.uniform(
+            [], minval=lb_y, maxval=ub_y + 1, dtype=tf.int64
+        )
+        bbox_z_lb = tf.random.uniform(
+            [], minval=lb_z, maxval=ub_z + 1, dtype=tf.int64
+        )
+    else:
+
+        c = random_choice(class_locations_types, 0)[0]
+        class_locations_decode = tf.io.decode_raw(
+            class_locations_bytes[i][c], tf.int64
+        )
+        class_locations = tf.reshape(
+            class_locations_decode, [class_locations_shape[i][c], -1]
+        )
+        selected_voxel = random_choice(class_locations, 0)[0]
+
+        if selected_voxel is not nan:
+            # selected_voxel = random_choice(voxels_of_that_class, 0)
+            # selected_voxel = voxels_of_that_class[0]
+            bbox_x_lb = tf.maximum(
+                lb_x,
+                selected_voxel[0]
+                - basic_generator_patch_size[0] // 2,
+            )
+            bbox_y_lb = tf.maximum(
+                lb_y,
+                selected_voxel[1]
+                - basic_generator_patch_size[1] // 2,
+            )
+            bbox_z_lb = tf.maximum(
+                lb_z,
+                selected_voxel[2]
+                - basic_generator_patch_size[2] // 2,
+            )
+        else:
+            bbox_x_lb = tf.random.uniform(
+                [], minval=lb_x, maxval=ub_x + 1, dtype=tf.int64
+            )
+            bbox_y_lb = tf.random.uniform(
+                [], minval=lb_y, maxval=ub_y + 1, dtype=tf.int64
+            )
+            bbox_z_lb = tf.random.uniform(
+                [], minval=lb_z, maxval=ub_z + 1, dtype=tf.int64
+            )
+
+    bbox_x_ub = bbox_x_lb + basic_generator_patch_size[0]
+    bbox_y_ub = bbox_y_lb + basic_generator_patch_size[1]
+    bbox_z_ub = bbox_z_lb + basic_generator_patch_size[2]
+
+    valid_bbox_x_lb = tf.maximum(zero, bbox_x_lb)
+    valid_bbox_x_ub = tf.minimum(shape[0], bbox_x_ub)
+    valid_bbox_y_lb = tf.maximum(zero, bbox_y_lb)
+    valid_bbox_y_ub = tf.minimum(shape[1], bbox_y_ub)
+    valid_bbox_z_lb = tf.maximum(zero, bbox_z_lb)
+    valid_bbox_z_ub = tf.minimum(shape[2], bbox_z_ub)
+
+    case_all_data = tf.identity(
+        case_all_data[
+            :,
+            valid_bbox_x_lb:valid_bbox_x_ub,
+            valid_bbox_y_lb:valid_bbox_y_ub,
+            valid_bbox_z_lb:valid_bbox_z_ub,
+        ]
+    )
+
+    img = tf.pad(
+        case_all_data[:-1],
+        (
+            [0, 0],
+            [
+                -tf.minimum(zero, bbox_x_lb),
+                tf.maximum(bbox_x_ub - shape[0], zero),
+            ],
+            [
+                -tf.minimum(zero, bbox_y_lb),
+                tf.maximum(bbox_y_ub - shape[1], zero),
+            ],
+            [
+                -tf.minimum(zero, bbox_z_lb),
+                tf.maximum(bbox_z_ub - shape[2], zero),
+            ],
+        ),
+        mode="CONSTANT",
+    )
+    seg = tf.pad(
+        case_all_data[-1:],
+        (
+            [0, 0],
+            [
+                -tf.minimum(zero, bbox_x_lb),
+                tf.maximum(bbox_x_ub - shape[0], zero),
+            ],
+            [
+                -tf.minimum(zero, bbox_y_lb),
+                tf.maximum(bbox_y_ub - shape[1], zero),
+            ],
+            [
+                -tf.minimum(zero, bbox_z_lb),
+                tf.maximum(bbox_z_ub - shape[2], zero),
+            ],
+        ),
+        mode="CONSTANT",
+        constant_values=-1,
+    )
+    result = tf.stack([img, seg])
+    return result
 
 @tf.function
 def augment_spatial(
