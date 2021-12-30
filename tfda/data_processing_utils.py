@@ -7,18 +7,21 @@
 # Standard Library
 import os
 import pickle
-import time
 from copy import deepcopy
-from typing import Tuple
 
 import tensorflow as tf
-from tensorflow.python.ops.gen_math_ops import truncate_div
-from tfda.utils import pi, TFbT, TFbF, nan, isnan
-from tfda.augmentations.utils import rotate_coords_2d, rotate_coords_3d
-from tfda.base import DTFT, TFT
+
+# Types
+from typing import Tuple
 
 # Others
 import tensorflow_addons as tfa
+
+# Local
+from tfda.augmentations.utils import rotate_coords_2d, rotate_coords_3d
+from tfda.base import DTFT
+from tfda.defs import TFbF, TFbT, nan, pi
+from tfda.utils import isnan
 
 default_3D_augmentation_params = {
     "selected_data_channels": nan,
@@ -260,7 +263,7 @@ class DataAugmentor:
         self.data_aug_param["num_cached_per_thread"] = 2
 
     @tf.function(experimental_follow_type_hints=TFbT)
-    def formalize_data_3d(self, data: DTFT) -> Tuple[TFT, TFT]:
+    def formalize_data_3d(self, data: DTFT) -> Tuple[tf.Tensor, tf.Tensor]:
 
         # main body begin here
         (
@@ -280,8 +283,8 @@ class DataAugmentor:
         original_image_size = tf.cast(data["image/shape"], dtype=tf.int64)
         original_label_size = tf.cast(data["label/shape"], dtype=tf.int64)
 
-        results = tf.map_fn(lambda i: process_batch(i, image_raw, original_image_size, original_label_size, label_raw, 
-                class_locations_bytes, class_locations_shape, self.basic_generator_patch_size, self.patch_size, self.batch_size, self.oversample_foregroung_percent), 
+        results = tf.map_fn(lambda i: process_batch(i, image_raw, original_image_size, original_label_size, label_raw,
+                class_locations_bytes, class_locations_shape, self.basic_generator_patch_size, self.patch_size, self.batch_size, self.oversample_foregroung_percent),
                             elems=tf.range(self.batch_size, dtype=tf.float32))
         images = results[:, 0]
         segs = results[:, 1]
@@ -300,7 +303,7 @@ def update_need_to_pad(need_to_pad, d, basic_generator_patch_size, case_all_data
         need_to_pad_d = basic_generator_patch_size[d] - tf.shape(case_all_data, out_type=tf.int64)[d+1]
         return tf.cond(tf.less(need_to_pad[d]+tf.shape(case_all_data, out_type=tf.int64)[d+1], basic_generator_patch_size[d]), lambda: need_to_pad_d, lambda: need_to_pad[d])
 
-def process_batch(ii, image_raw, original_image_size, original_label_size, label_raw, 
+def process_batch(ii, image_raw, original_image_size, original_label_size, label_raw,
                 class_locations_bytes, class_locations_shape, basic_generator_patch_size, patch_size, batch_size, oversample_foregroung_percent):
     i = tf.cast(ii, tf.int64)
     zero = tf.constant(0, dtype=tf.int64)
