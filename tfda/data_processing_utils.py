@@ -5,7 +5,6 @@
 # @desc use for data loader and some processing
 
 # Standard Library
-import math
 import os
 import pickle
 import time
@@ -14,51 +13,52 @@ from typing import Tuple
 
 import tensorflow as tf
 from tensorflow.python.ops.gen_math_ops import truncate_div
-from tfda.utils import pi, TFbT, TFbF
+from tfda.utils import pi, TFbT, TFbF, nan, isnan
+from tfda.augmentations.utils import rotate_coords_2d, rotate_coords_3d
 from tfda.base import DTFT, TFT
 
 # Others
 import tensorflow_addons as tfa
 
 default_3D_augmentation_params = {
-    "selected_data_channels": None,
-    "selected_seg_channels": None,
-    "do_elastic": True,
+    "selected_data_channels": nan,
+    "selected_seg_channels": nan,
+    "do_elastic": TFbT,
     "elastic_deform_alpha": (0.0, 900.0),
     "elastic_deform_sigma": (9.0, 13.0),
     "p_eldef": 0.2,
-    "do_scaling": True,
+    "do_scaling": TFbT,
     "scale_range": (0.85, 1.25),
-    "independent_scale_factor_for_each_axis": False,
+    "independent_scale_factor_for_each_axis": TFbF,
     "p_independent_scale_per_axis": 1,
     "p_scale": 0.2,
-    "do_rotation": True,
-    "rotation_x": (-15.0 / 360 * 2.0 * math.pi, 15.0 / 360 * 2.0 * math.pi),
-    "rotation_y": (-15.0 / 360 * 2.0 * math.pi, 15.0 / 360 * 2.0 * math.pi),
-    "rotation_z": (-15.0 / 360 * 2.0 * math.pi, 15.0 / 360 * 2.0 * math.pi),
+    "do_rotation": TFbT,
+    "rotation_x": (-15.0 / 360 * 2.0 * pi, 15.0 / 360 * 2.0 * pi),
+    "rotation_y": (-15.0 / 360 * 2.0 * pi, 15.0 / 360 * 2.0 * pi),
+    "rotation_z": (-15.0 / 360 * 2.0 * pi, 15.0 / 360 * 2.0 * pi),
     "rotation_p_per_axis": 1,
     "p_rot": 0.2,
-    "random_crop": False,
-    "random_crop_dist_to_border": None,
-    "do_gamma": True,
-    "gamma_retain_stats": True,
+    "random_crop": TFbF,
+    "random_crop_dist_to_border": nan,
+    "do_gamma": TFbT,
+    "gamma_retain_stats": TFbT,
     "gamma_range": (0.7, 1.5),
     "p_gamma": 0.3,
-    "do_mirror": True,
+    "do_mirror": TFbT,
     "mirror_axes": (0, 1, 2),
-    "dummy_2D": False,
-    "mask_was_used_for_normalization": None,
+    "dummy_2D": TFbF,
+    "mask_was_used_for_normalization": nan,
     "border_mode_data": "constant",
-    "all_segmentation_labels": None,  # used for cascade
-    "move_last_seg_chanel_to_data": False,  # used for cascade
-    "cascade_do_cascade_augmentations": False,  # used for cascade
+    "all_segmentation_labels": nan,  # used for cascade
+    "move_last_seg_chanel_to_data": TFbF,  # used for cascade
+    "cascade_do_cascade_augmentations": TFbF,  # used for cascade
     "cascade_random_binary_transform_p": 0.4,
     "cascade_random_binary_transform_p_per_label": 1,
     "cascade_random_binary_transform_size": (1, 8),
     "cascade_remove_conn_comp_p": 0.2,
     "cascade_remove_conn_comp_max_size_percent_threshold": 0.15,
     "cascade_remove_conn_comp_fill_with_other_class_p": 0.0,
-    "do_additive_brightness": False,
+    "do_additive_brightness": TFbF,
     "additive_brightness_p_per_sample": 0.15,
     "additive_brightness_p_per_channel": 0.5,
     "additive_brightness_mu": 0.0,
@@ -90,108 +90,23 @@ default_2D_augmentation_params["rotation_z"] = (
 # sometimes you have 3d data and a 3d net but cannot augment them properly in 3d due to anisotropy (which is currently
 # not supported in batchgenerators). In that case you can 'cheat' and transfer your 3d data into 2d data and
 # transform them back after augmentation
-default_2D_augmentation_params["dummy_2D"] = False
+default_2D_augmentation_params["dummy_2D"] = TFbF
 default_2D_augmentation_params["mirror_axes"] = (
     0,
     1,
-)  # this can be (0, 1, 2) if dummy_2D=True
-
-
-def rotate_coords_3d(coords, angle_x, angle_y, angle_z):
-    rot_matrix = tf.eye(len(coords))
-    rot_matrix = create_matrix_rotation_x_3d(angle_x, rot_matrix)
-    rot_matrix = create_matrix_rotation_y_3d(angle_y, rot_matrix)
-    rot_matrix = create_matrix_rotation_z_3d(angle_z, rot_matrix)
-    coords_shape = tf.shape(coords)
-    coords = tf.transpose(
-        tf.matmul(
-        tf.transpose(tf.reshape(coords, (len(coords), -1))), rot_matrix
-    )
-    )
-    coords = tf.reshape(coords, coords_shape)
-    return coords
-
-
-def create_matrix_rotation_x_3d(angle, matrix=None):
-    rotation_x = tf.convert_to_tensor(
-        [
-            [1, 0, 0],
-            [0, tf.math.cos(angle), -tf.math.sin(angle)],
-            [0, tf.math.sin(angle), tf.math.cos(angle)],
-        ]
-    )
-    if matrix is None:
-        return rotation_x
-
-    return tf.matmul(matrix, rotation_x)
-
-
-def create_matrix_rotation_y_3d(angle, matrix=None):
-    rotation_y = tf.convert_to_tensor(
-        [
-            [tf.math.cos(angle), 0, tf.math.sin(angle)],
-            [0, 1, 0],
-            [-tf.math.sin(angle), 0, tf.math.cos(angle)],
-        ]
-    )
-    if matrix is None:
-        return rotation_y
-
-    return tf.matmul(matrix, rotation_y)
-
-
-def create_matrix_rotation_z_3d(angle, matrix=None):
-    rotation_z = tf.convert_to_tensor(
-        [
-            [tf.math.cos(angle), -tf.math.sin(angle), 0],
-            [tf.math.sin(angle), tf.math.cos(angle), 0],
-            [0, 0, 1],
-        ]
-    )
-    if matrix is None:
-        return rotation_z
-
-    return tf.matmul(matrix, rotation_z)
-
-
-def rotate_coords_2d(coords, angle):
-    rot_matrix = create_matrix_rotation_2d(angle)
-    coords_shape = tf.shape(coords)
-    coords = tf.transpose(
-        tf.matmul(
-        tf.transpose(tf.reshape(coords, (len(coords), -1))), rot_matrix
-    )
-    )
-    coords = tf.reshape(coords, coords_shape)
-    return coords
-
-
-def create_matrix_rotation_2d(angle, matrix=None):
-    rotation = tf.convert_to_tensor(
-        [
-            [tf.math.cos(angle), -math.sin(angle)],
-            [tf.math.sin(angle), tf.math.cos(angle)],
-        ]
-    )
-    if matrix is None:
-        return rotation
-
-    return tf.matmul(matrix, rotation)
+)  # this can be (0, 1, 2) if dummy_2D=TFbT
 
 
 def get_batch_size(final_patch_size, rot_x, rot_y, rot_z, scale_range):
-    if isinstance(rot_x, (tuple, list)):
-        rot_x = tf.reduce_max(tf.abs(rot_x))
-    if isinstance(rot_y, (tuple, list)):
-        rot_y = tf.reduce_max(tf.abs(rot_y))
-    if isinstance(rot_z, (tuple, list)):
-        rot_z = tf.reduce_max(tf.abs(rot_z))
+    rot_x = tf.reduce_max(tf.abs(rot_x))
+    rot_y = tf.reduce_max(tf.abs(rot_y))
+    rot_z = tf.reduce_max(tf.abs(rot_z))
     rot_x = tf.minimum(90 / 360 * 2.0 * pi, rot_x)
     rot_y = tf.minimum(90 / 360 * 2.0 * pi, rot_y)
     rot_z = tf.minimum(90 / 360 * 2.0 * pi, rot_z)
     coords = tf.cast(final_patch_size, dtype=tf.float32)
     final_shape = tf.identity(coords)
-    if len(coords) == 3:
+    if tf.shape(coords)[0] == 3:
         final_shape = tf.math.reduce_max(
             tf.stack(
                 (tf.abs(rotate_coords_3d(coords, rot_x, 0., 0.)), final_shape)
@@ -210,7 +125,7 @@ def get_batch_size(final_patch_size, rot_x, rot_y, rot_z, scale_range):
             ),
             axis=0,
         )
-    elif len(coords) == 2:
+    else:
         final_shape = tf.math.reduce_max(
             tf.stack((tf.abs(rotate_coords_2d(coords, rot_x)), final_shape)),
             axis=0,
@@ -220,24 +135,24 @@ def get_batch_size(final_patch_size, rot_x, rot_y, rot_z, scale_range):
 
 
 class DataAugmentor:
-    def __init__(self, plans_files, jsn, plans = None) -> None:
+    def __init__(self, plans_files, jsn, plans = nan) -> nan:
         self.plans_file = plans_files
         self.jsn = jsn
         self.plans = plans
-        self.threeD = None
-        self.do_dummy_2D_aug = None
-        self.use_mask_for_norm = None
-        self.basic_generator_patch_size = None
-        self.patch_size = None
-        self.batch_size = None
+        self.threeD = nan
+        self.do_dummy_2D_aug = nan
+        self.use_mask_for_norm = nan
+        self.basic_generator_patch_size = nan
+        self.patch_size = nan
+        self.batch_size = nan
         self.oversample_foregroung_percent = 0.33
-        self.pad_all_sides = None
-        self.stage = None
-        self.data_aug_param = None
+        self.pad_all_sides = nan
+        self.stage = nan
+        self.data_aug_param = nan
         self.pseud_3d_slices = 1
 
-    def initialize(self, training=True, force_load_plans_file=False):
-        if (force_load_plans_file or self.plans is None) and not self.plans:
+    def initialize(self, training=TFbT, force_load_plans_file=TFbF):
+        if force_load_plans_file or isnan(self.plans):
             self.load_plans_file()  #  here not sure whether pickle can be used in the tpu
         self.process_plans(self.plans)
 
@@ -248,15 +163,14 @@ class DataAugmentor:
             self.plans = pickle.load(f)
 
     def transform_fn(self, dataset, input_context):
-        self.batch_size = 1
-        dataset = dataset.batch(self.batch_size, drop_remainder=True)
+        dataset = dataset.batch(self.batch_size, drop_remainder=TFbT)
         dataset = dataset.map(self.formalize_data_3d, num_parallel_calls=tf.data.experimental.AUTOTUNE)
         return dataset
 
     def process_plans(self, plans):
-        if self.stage is None:
+        if isnan(self.stage):
             assert len(list(plans["plans_per_stage"].keys())) == 1, (
-                "If self.stage is None then there can be only one stage in the plans file. That seems to not be the "
+                "If self.stage is nan then there can be only one stage in the plans file. That seems to not be the "
                 "case. Please specify which stage of the cascade must be trained"
             )
             self.stage = list(plans["plans_per_stage"].keys())[0]
@@ -266,12 +180,12 @@ class DataAugmentor:
         self.batch_size = stage_plans["batch_size"]
         self.patch_size = tf.convert_to_tensor(stage_plans["patch_size"], tf.int64)  # here, in the orginal code, the author convert it to np.array. It may need to change later.
         self.do_dummy_2D_aug = stage_plans["do_dumy_2D_data_aug"]
-        self.pad_all_sides = None
+        self.pad_all_sides = nan
         self.use_mask_for_norm = plans["use_mask_for_norm"]
         if len(self.patch_size) == 2:
-            self.threeD = False
+            self.threeD = TFbF
         elif len(self.patch_size) == 3:
-            self.threeD = True
+            self.threeD = TFbT
         else:
             raise RuntimeError(
                 "invalid patch size in plans file: %s" % str(self.patch_size)
@@ -281,19 +195,19 @@ class DataAugmentor:
         if self.threeD:
             self.data_aug_param = default_3D_augmentation_params
             self.data_aug_param["rotation_x"] = (
-                -30.0 / 360 * 2.0 * math.pi,
-                30.0 / 360 * 2.0 * math.pi,
+                -30.0 / 360 * 2.0 * pi,
+                30.0 / 360 * 2.0 * pi,
             )
             self.data_aug_param["rotation_y"] = (
-                -30.0 / 360 * 2.0 * math.pi,
-                30.0 / 360 * 2.0 * math.pi,
+                -30.0 / 360 * 2.0 * pi,
+                30.0 / 360 * 2.0 * pi,
             )
             self.data_aug_param["rotation_z"] = (
-                -30.0 / 360 * 2.0 * math.pi,
-                30.0 / 360 * 2.0 * math.pi,
+                -30.0 / 360 * 2.0 * pi,
+                30.0 / 360 * 2.0 * pi,
             )
             if self.do_dummy_2D_aug:
-                self.data_aug_param["dummy_2D"] = True
+                self.data_aug_param["dummy_2D"] = TFbT
                 print("Using dummy2d data augmentation")
                 self.data_aug_param[
                     "elastic_deform_alpha"
@@ -305,11 +219,11 @@ class DataAugmentor:
                     "rotation_x"
                 ] = default_2D_augmentation_params["rotation_x"]
         else:
-            self.do_dummy_2D_aug = False
+            self.do_dummy_2D_aug = TFbF
             if max(self.patch_size) / min(self.patch_size) > 1.5:
                 default_2D_augmentation_params["rotation_x"] = (
-                    -15.0 / 360 * 2.0 * math.pi,
-                    15.0 / 360 * 2.0 * math.pi,
+                    -15.0 / 360 * 2.0 * pi,
+                    15.0 / 360 * 2.0 * pi,
                 )
             self.data_aug_param = default_2D_augmentation_params
         self.data_aug_param[
@@ -338,181 +252,19 @@ class DataAugmentor:
             )
         self.basic_generator_patch_size = tf.cast(self.basic_generator_patch_size, tf.int64)
         self.data_aug_param["scale_range"] = (0.7, 1.4)
-        self.data_aug_param["do_elastic"] = False
+        self.data_aug_param["do_elastic"] = TFbF
         self.data_aug_param["selected_seg_channels"] = [0]
         self.data_aug_param[
             "patch_size_for_spatial_transform"
         ] = self.patch_size
         self.data_aug_param["num_cached_per_thread"] = 2
 
-    def formalize_data(
-        self,
-        case_identifier,
-        image,
-        label,
-        class_locations_bytes,
-        class_locations_shape,
-        return_type,
-    ):
-        if tf.random.uniform([]) < self.oversample_foregroung_percent:
-            force_fg = TFbT
-        else:
-            force_fg = TFbF
-        class_locations = {}
-        for i, class_locations_decode in enumerate(class_locations_bytes):
-            class_locations_decode = tf.io.decode_raw(
-                class_locations_decode, tf.int64
-            )
-            class_locations[tf.constant(i + 1, dtype=tf.int64)] = tf.reshape(
-                class_locations_decode, (class_locations_shape[i], -1)
-            )
-        need_to_pad = tf.convert_to_tensor(
-            self.basic_generator_patch_size, dtype=tf.int64
-        ) - tf.convert_to_tensor(self.patch_size, dtype=tf.int64)
-        case_all_data = tf.concat([image, label], axis=0)
-        # assert need_to_pad is None, f'{need_to_pad}, {case_all_data.shape}, {self.basic_generator_patch_size}'
-        def update_need_to_pad(need_to_pad, d):
-            need_to_pad_d = self.basic_generator_patch_size[d] - tf.shape(case_all_data)[d+1]
-            return tf.cond(tf.less(need_to_pad[d]+tf.shape(case_all_data)[d], self.basic_generator_patch_size[d]), lambda: update_tf_channel(need_to_pad, d, need_to_pad_d), lambda: need_to_pad)
-            #  need_to_pad[d] = self.basic_generator_patch_size[d] - case_all_data.shape[d+1]
-        need_to_pad = tf.map_fn(lambda d: update_need_to_pad(need_to_pad, d), elems=tf.range(3, dtype=tf.float32))
-        shape = case_all_data.shape[1:]
-        lb_x = -need_to_pad[0] // 2
-        ub_x = (
-            shape[0]
-            + need_to_pad[0] // 2
-            + need_to_pad[0] % 2
-            - self.basic_generator_patch_size[0]
-        )
-        lb_y = -need_to_pad[1] // 2
-        ub_y = (
-            shape[1]
-            + need_to_pad[1] // 2
-            + need_to_pad[1] % 2
-            - self.basic_generator_patch_size[1]
-        )
-        lb_z = -need_to_pad[2] // 2
-        ub_z = (
-            shape[2]
-            + need_to_pad[2] // 2
-            + need_to_pad[2] % 2
-            - self.basic_generator_patch_size[2]
-        )
-
-        if not force_fg:
-            bbox_x_lb = tf.random.uniform(
-                [], minval=lb_x, maxval=ub_x + 1, dtype=tf.int64
-            )
-            bbox_y_lb = tf.random.uniform(
-                [], minval=lb_y, maxval=ub_y + 1, dtype=tf.int64
-            )
-            bbox_z_lb = tf.random.uniform(
-                [], minval=lb_z, maxval=ub_z + 1, dtype=tf.int64
-            )
-        else:
-            foreground_classes = tf.constant(
-                [i for i in class_locations.keys() if i != 0]
-            )
-            if len(foreground_classes) == 0:
-                selected_class = None
-                voxels_of_that_class = None
-                print(
-                    f"case does not contain any foreground classes {case_identifier}"
-                )
-            else:
-                selected_class = random_choice(tf.range(foreground_classes), 0)
-                voxels_of_that_class = class_locations[selected_class]
-
-            if voxels_of_that_class is not None:
-                selected_voxel = random_choice(voxels_of_that_class, 0)
-                bbox_x_lb = max(
-                    lb_x,
-                    selected_voxel[0]
-                    - self.basic_generator_patch_size[0] // 2,
-                )
-                bbox_y_lb = max(
-                    lb_y,
-                    selected_voxel[1]
-                    - self.basic_generator_patch_size[1] // 2,
-                )
-                bbox_z_lb = max(
-                    lb_z,
-                    selected_voxel[2]
-                    - self.basic_generator_patch_size[2] // 2,
-                )
-            else:
-                bbox_x_lb = tf.random.uniform(
-                    [], minval=lb_x, maxval=ub_x + 1, dtype=tf.int64
-                )
-                bbox_y_lb = tf.random.uniform(
-                    [], minval=lb_y, maxval=ub_y + 1, dtype=tf.int64
-                )
-                bbox_z_lb = tf.random.uniform(
-                    [], minval=lb_z, maxval=ub_z + 1, dtype=tf.int64
-                )
-
-        bbox_x_ub = bbox_x_lb + self.basic_generator_patch_size[0]
-        bbox_y_ub = bbox_y_lb + self.basic_generator_patch_size[1]
-        bbox_z_ub = bbox_z_lb + self.basic_generator_patch_size[2]
-
-        valid_bbox_x_lb = max(0, bbox_x_lb)
-        valid_bbox_x_ub = min(shape[0], bbox_x_ub)
-        valid_bbox_y_lb = max(0, bbox_y_lb)
-        valid_bbox_y_ub = min(shape[1], bbox_y_ub)
-        valid_bbox_z_lb = max(0, bbox_z_lb)
-        valid_bbox_z_ub = min(shape[2], bbox_z_ub)
-
-        # assert case_all_data is None, f'{shape}, {valid_bbox_x_lb}, {valid_bbox_x_ub}, {valid_bbox_y_lb}, {valid_bbox_y_ub}, {valid_bbox_z_lb}, {valid_bbox_z_ub}'
-
-        case_all_data = case_all_data[
-            :,
-            valid_bbox_x_lb:valid_bbox_x_ub,
-            valid_bbox_y_lb:valid_bbox_y_ub,
-            valid_bbox_z_lb:valid_bbox_z_ub,
-        ]
-        """
-        # just for test here.
-        pad = [[0, 0],
-                                            [-min(0, bbox_x_lb), max(bbox_x_ub - shape[0], 0)],
-                                            [-min(0, bbox_y_lb), max(bbox_y_ub - shape[1], 0)],
-                                            [-min(0, bbox_z_lb), max(bbox_z_ub - shape[2], 0)]]
-        assert case_all_data is None, f'{pad}'
-        """
-        image = tf.pad(
-            case_all_data[:-1],
-            (
-                [0, 0],
-                [-min(0, bbox_x_lb), max(bbox_x_ub - shape[0], 0)],
-                [-min(0, bbox_y_lb), max(bbox_y_ub - shape[1], 0)],
-                [-min(0, bbox_z_lb), max(bbox_z_ub - shape[2], 0)],
-            ),
-            mode="CONSTANT",
-        )
-        seg = tf.pad(
-            case_all_data[-1:],
-            (
-                [0, 0],
-                [-min(0, bbox_x_lb), max(bbox_x_ub - shape[0], 0)],
-                [-min(0, bbox_y_lb), max(bbox_y_ub - shape[1], 0)],
-                [-min(0, bbox_z_lb), max(bbox_z_ub - shape[2], 0)],
-            ),
-            mode="CONSTANT",
-            constant_values=-1,
-        )
-
-        return image, seg
-
     def get_do_oversample(self, batch_idx):
-        '''
-        return not batch_idx < tf.round(
-            tf.constant(self.batch_size * (1 - self.oversample_foregroung_percent))
-        )
-        '''
-        return tf.greater_equal(tf.cast(batch_idx, tf.float64), tf.round(
-            self.batch_size * (tf.cast(1, tf.float64) - self.oversample_foregroung_percent))
-        )
+        # return not batch_idx < round(self.batch_size * (1 - self.oversample_foregroung_percent))
+        return tf.greater_equal(tf.cast(batch_idx, tf.float32), tf.round(tf.cast(self.batch_size, tf.float32) * (tf.cast(1-self.oversample_foregroung_percent, tf.float32))))
 
-    @tf.function(experimental_follow_type_hints=True)
+
+    @tf.function(experimental_follow_type_hints=TFbT)
     def formalize_data_3d(self, data: DTFT) -> Tuple[TFT, TFT]:
 
         def process_batch(ii):
@@ -528,27 +280,13 @@ class DataAugmentor:
             # TPU doesn't support tf.int64 well, use tf.int64 directly.
             if label.dtype == tf.int64:
                 label = tf.cast(label, dtype=tf.int64)
-            '''
-            class_locations = []
-            class_locations_len = []
-            for c in tf.range(tf.shape(class_locations_bytes[i])[0]):
-                class_locations_decode = tf.io.decode_raw(
-                    class_locations_bytes[i][c], tf.int64
-                )
-                class_locations_c = tf.reshape(
-                    class_locations_decode, [class_locations_shape[i][c], -1]
-                )
-                class_locations.append(class_locations_c)
-                class_locations_len.append(class_locations_shape[i][c])
-            class_locations = tf.concat(class_locations, axis=0)
-            class_locations_len = tf.convert_to_tensor(class_locations_len)
-            '''
-            # assert class_locations_bytes is None, f'{}'
+
+            # assert class_locations_bytes is nan, f'{}'
             class_locations_types = tf.range(tf.shape(class_locations_bytes[i])[0])
             if self.get_do_oversample(i):
-                force_fg = True
+                force_fg = TFbT
             else:
-                force_fg = False
+                force_fg = TFbF
             case_all_data = tf.concat([image, label], axis=0)
             self.basic_generator_patch_size = tf.cast(
                 self.basic_generator_patch_size, dtype=tf.int64
@@ -596,33 +334,6 @@ class DataAugmentor:
                     [], minval=lb_z, maxval=ub_z + 1, dtype=tf.int64
                 )
             else:
-                '''
-                foreground_classes = [
-                    c for c in class_locations.keys() if c != 0
-                ]
-                voxels_of_that_class = class_locations[1]
-                selected_voxel = voxels_of_that_class[0]
-                if len(foreground_classes) == 0:
-                    selected_class = None
-                    voxels_of_that_class = None
-                    tf.print(
-                        f"case does not contain any foreground classes {case_identifier}"
-                    )
-                else:
-
-                    rand_val = tf.random.uniform(
-                        [],
-                        minval=0,
-                        maxval=len(class_locations),
-                        dtype=tf.int64,
-                    )
-                    for key in class_locations.keys():
-                        if tf.constant(key, dtype=tf.int64) == rand_val:
-                            voxels_of_that_class = class_locations[key]
-                            selected_voxel = random_choice(
-                                voxels_of_that_class, 0
-                            )[0]
-                '''
 
                 c = random_choice(class_locations_types, 0)[0]
                 class_locations_decode = tf.io.decode_raw(
@@ -633,7 +344,7 @@ class DataAugmentor:
                 )
                 selected_voxel = random_choice(class_locations, 0)[0]
 
-                if selected_voxel is not None:
+                if selected_voxel is not nan:
                     # selected_voxel = random_choice(voxels_of_that_class, 0)
                     # selected_voxel = voxels_of_that_class[0]
                     bbox_x_lb = tf.maximum(
@@ -745,118 +456,12 @@ class DataAugmentor:
         results = tf.map_fn(lambda i: process_batch(i), elems=tf.range(self.batch_size, dtype=tf.float32))
         images = results[:, 0]
         segs = results[:, 1]
-        # assert data is None, f'{images}'
+        # assert data is nan, f'{images}'
         # data["images"] = images
         # data["labels"] = segs
         # return data
         images, segs = tf.transpose(images, (0, 2, 3, 4, 1)), tf.transpose(segs, (0, 2, 3, 4, 1))
         return images, segs
-
-
-class TestSpatialTransform(tf.keras.layers.Layer):
-    def __init__(
-        self,
-        do_dummy_2D,
-        patch_size,
-        patch_center_dist_from_border=30,
-        do_elastic_deform=True,
-        alpha=(0.0, 1000.0),
-        sigma=(10.0, 13.0),
-        do_rotation=True,
-        angle_x=(0, 2 * tf.constant(math.pi)),
-        angle_y=(0, 2 * tf.constant(math.pi)),
-        angle_z=(0, 2 * tf.constant(math.pi)),
-        do_scale=True,
-        scale=(0.75, 1.25),
-        border_mode_data="nearest",
-        border_cval_data=0,
-        order_data=3,
-        data_key="images",
-        label_key="labels",
-        border_mode_seg="constant",
-        border_cval_seg=0,
-        order_seg=0,
-        random_crop=True,
-        p_el_per_sample=1,
-        p_scale_per_sample=1,
-        p_rot_per_sample=1,
-        independent_scale_for_each_axis=False,
-        p_rot_per_axis: float = 1,
-        p_independent_scale_per_axis: int = 1,
-    ) -> None:
-
-        super(TestSpatialTransform, self).__init__(name="TestSpatialTransform")
-        self.do_dummy_2D = do_dummy_2D
-        self.independent_scale_for_each_axis = independent_scale_for_each_axis
-        self.p_rot_per_sample = p_rot_per_sample
-        self.p_scale_per_sample = p_scale_per_sample
-        self.p_el_per_sample = p_el_per_sample
-        self.patch_size = patch_size
-        self.patch_center_dist_from_border = patch_center_dist_from_border
-        self.do_elastic_deform = do_elastic_deform
-        self.alpha = alpha
-        self.sigma = sigma
-        self.do_rotation = do_rotation
-        self.angle_x = angle_x
-        self.angle_y = angle_y
-        self.angle_z = angle_z
-        self.do_scale = do_scale
-        self.scale = scale
-        self.border_mode_data = border_mode_data
-        self.border_cval_data = border_cval_data
-        self.order_data = order_data
-        self.border_mode_seg = border_mode_seg
-        self.border_cval_seg = border_cval_seg
-        self.order_seg = order_seg
-        self.random_crop = random_crop
-        self.p_rot_per_axis = p_rot_per_axis
-        self.data_key = data_key
-        self.seg_key = label_key
-        self.p_independent_scale_per_axis = p_independent_scale_per_axis
-        self.rng = tf.random.Generator.from_seed(123, alg="philox")
-
-    def __call__(self, data):
-        images = data[self.data_key]
-        segs = data[self.seg_key]
-
-        if self.patch_size is None:
-            patch_size = tf.shape(images)[2:]
-        else:
-            patch_size = self.patch_size
-        ret_val = augment_spatial(
-            images,
-            segs,
-            patch_size=patch_size,
-            patch_center_dist_from_border=self.patch_center_dist_from_border,
-            do_elastic_deform=self.do_elastic_deform,
-            alpha=self.alpha,
-            sigma=self.sigma,
-            do_rotation=self.do_rotation,
-            angle_x=self.angle_x,
-            angle_y=self.angle_y,
-            angle_z=self.angle_z,
-            do_scale=self.do_scale,
-            scale=self.scale,
-            border_mode_data=self.border_mode_data,
-            border_cval_data=self.border_cval_data,
-            order_data=self.order_data,
-            border_mode_seg=self.border_mode_seg,
-            border_cval_seg=self.border_cval_seg,
-            order_seg=self.order_seg,
-            random_crop=self.random_crop,
-            p_el_per_sample=self.p_el_per_sample,
-            p_scale_per_sample=self.p_scale_per_sample,
-            p_rot_per_sample=self.p_rot_per_sample,
-            independent_scale_for_each_axis=self.independent_scale_for_each_axis,
-            p_rot_per_axis=self.p_rot_per_axis,
-            p_independent_scale_per_axis=self.p_independent_scale_per_axis,
-        )
-        data[self.data_key] = ret_val[0]
-        if segs is not None:
-            data[self.seg_key] = ret_val[1]
-
-        return data
-
 
 @tf.function
 def augment_spatial(
@@ -864,14 +469,14 @@ def augment_spatial(
     seg,
     patch_size,
     patch_center_dist_from_border=30,
-    do_elastic_deform=True,
+    do_elastic_deform=TFbT,
     alpha=(0.0, 1000.0),
     sigma=(10.0, 13.0),
-    do_rotation=True,
-    angle_x=(0, 2 * tf.constant(math.pi)),
-    angle_y=(0, 2 * tf.constant(math.pi)),
-    angle_z=(0, 2 * tf.constant(math.pi)),
-    do_scale=True,
+    do_rotation=TFbT,
+    angle_x=(0, 2 * tf.constant(pi)),
+    angle_y=(0, 2 * tf.constant(pi)),
+    angle_z=(0, 2 * tf.constant(pi)),
+    do_scale=TFbT,
     scale=(0.75, 1.25),
     border_mode_data="nearest",
     border_cval_data=0,
@@ -879,11 +484,11 @@ def augment_spatial(
     border_mode_seg="constant",
     border_cval_seg=0,
     order_seg=3,
-    random_crop=True,
+    random_crop=TFbT,
     p_el_per_sample=1.0,
     p_scale_per_sample=1.0,
     p_rot_per_sample=1,
-    independent_scale_for_each_axis=False,
+    independent_scale_for_each_axis=TFbF,
     p_rot_per_axis: float = 1.0,
     p_independent_scale_per_axis: int = 1,
 ):
@@ -891,7 +496,7 @@ def augment_spatial(
         sample_id, patch_size, data, seg, data_result, seg_result
     ):
         coords = create_zero_centered_coordinate_mesh(patch_size)
-        modified_coords = True
+        modified_coords = TFbT
         if modified_coords:
 
             d = tf.constant(0)
@@ -913,14 +518,14 @@ def augment_spatial(
                 coords_d = coords[d] + ctr
                 coords = update_tf_channel(coords, d, coords_d)
                 d = d + 1
-                coords.set_shape([3, None, None, None])
+                coords.set_shape([3, nan, nan, nan])
                 return d, coords
 
             _, coords = tf.while_loop(
                 loop_cond,
                 body_fn,
                 [d, coords],
-                shape_invariants=[tf.TensorShape(None), coords.get_shape()],
+                shape_invariants=[tf.TensorShape(nan), coords.get_shape()],
             )
             data_sample = tf.zeros(tf.shape(data_result)[1:])
             channel_id = tf.constant(0)
@@ -948,7 +553,7 @@ def augment_spatial(
             data_result = update_tf_channel(
                 data_result, sample_id, data_sample
             )
-            if seg is not None:
+            if seg is not nan:
                 seg_sample = tf.zeros(tf.shape(seg_result)[1:])
                 channel_id = tf.constant(0)
                 cond_to_loop_seg = lambda channel_id, seg_sample: tf.less(
@@ -962,7 +567,7 @@ def augment_spatial(
                         order_seg,
                         border_mode_seg,
                         border_cval_seg,
-                        is_seg=True,
+                        is_seg=TFbT,
                     )
                     seg_sample = update_tf_channel(
                         seg_sample, channel_id, seg_channel
@@ -977,8 +582,8 @@ def augment_spatial(
                     seg_result, sample_id, seg_sample
                 )
         else:
-            if seg is None:
-                s = None
+            if isnan(seg):
+                s = nan
             else:
                 s = seg[sample_id : sample_id + 1]
             if random_crop:
@@ -998,7 +603,7 @@ def augment_spatial(
                     data[sample_id : sample_id + 1], patch_size, s
                 )
             data_result = update_tf_channel(data_result, sample_id, d[0])
-            if seg is not None:
+            if seg is not nan:
                 seg_result = update_tf_channel(seg_result, sample_id, s[0])
         sample_id = sample_id + 1
         return sample_id, patch_size, data, seg, data_result, seg_result
@@ -1013,8 +618,8 @@ def augment_spatial(
         sample_id, sample_num
     )
     dim = tf.shape(patch_size)[0]
-    seg_result = None
-    if seg is not None:
+    seg_result = nan
+    if seg is not nan:
         seg_result = tf.cond(
             tf.equal(dim, tf.constant(2)),
             lambda: tf.zeros(
@@ -1045,11 +650,11 @@ def augment_spatial(
 
 
 def interpolate_img(
-    img, coords, order=3, mode="nearest", cval=0.0, is_seg=False
+    img, coords, order=3, mode="nearest", cval=0.0, is_seg=TFbF
 ):
     unique_labels, _ = tf.unique(tf.reshape(img, (1, -1))[0])
     if is_seg and order != 0:
-        # assert img is None, f'{img}'
+        # assert img is nan, f'{img}'
         result = tf.zeros(tf.shape(coords)[1:], dtype=tf.float32)
         cond_to_loop = lambda img, i, coords, result, order: tf.less(
             i, tf.shape(unique_labels)[0]
@@ -1084,15 +689,6 @@ def map_coordinates_seg(seg, cl, coords, result, order):
         result, indices, tf.ones(tf.shape(indices)[0]) * cl
     )
     return seg, cl, coords, result, order
-
-
-def map_coordinates_seg_3d(seg, coords, order=3):
-    raise NotImplementedError()
-
-
-def map_coordinates_seg_2d(seg, coords, order=3):
-    raise NotImplementedError()
-
 
 def map_coordinates_img(img, coords, order=3):
     # return tf.cond(tf.equal(tf.rank(img), tf.constant(3)), lambda: map_coordinates_3d(img, coords, order), lambda: map_coordinates_2d(img, coords, order))
@@ -1139,142 +735,6 @@ def map_coordinates_3d(img, coords, order=3):
     )
     result = tf.reshape(result, tf.shape(coords)[1:])
     return result
-
-
-def map_chunk_coordinates_3d_tmp(img, coords, order=3, chunk_size=4):
-    chunk_shape = tf.shape(coords)[1:] // chunk_size
-    chunk_shape = tf.concat([[tf.shape(coords)[0]], chunk_shape], axis=0)
-    chunk_shape = tf.cast(chunk_shape, tf.int64)
-    chunk_index = tf.zeros(tf.rank(coords), dtype=tf.int64)
-    total_result = tf.zeros(tf.shape(coords)[1:])
-    for k in tf.range(chunk_size):
-        cond_to_loop_j = (
-            lambda j, chunk_index, chunk_shape, total_result: tf.less(
-                j, tf.constant(chunk_size)
-            )
-        )
-
-        def body_fn_j(j, chunk_index, chunk_shape, total_result):
-            cond_to_loop_i = (
-                lambda i, chunk_index, chunk_shape, total_result: tf.less(
-                    i, chunk_size
-                )
-            )
-
-            def body_fn_i(i, chunk_index, chunk_shape, total_result):
-                chunk_coords = tf.slice(coords, chunk_index, chunk_shape)
-                chunk_coords_0, chunk_coords_1, chunk_coords_2 = (
-                    tf.reshape(chunk_coords[0], (-1, 1)),
-                    tf.reshape(chunk_coords[1], (-1, 1)),
-                    tf.reshape(chunk_coords[2], (-1, 1)),
-                )
-                chunk_coords = tf.concat(
-                    [chunk_coords_0, chunk_coords_1, chunk_coords_2], axis=1
-                )
-                chunk_min = tf.math.reduce_min(chunk_coords, axis=0)
-                chunk_max = tf.math.reduce_max(chunk_coords, axis=0)
-                chunk_min, chunk_max = tf.cast(
-                    tf.maximum(tf.constant(0.0), tf.floor(chunk_min)), tf.int64
-                ), tf.cast(tf.round(chunk_max), tf.int64)
-                slice_size = chunk_max - chunk_min + 1
-                slice_img = tf.slice(img, chunk_min, slice_size)
-                reshape_img = tf.reshape(slice_img, (1, -1, 1))
-                slice_x, slice_y, slice_z = tf.meshgrid(
-                    tf.range(chunk_min[0], chunk_max[0] + 1),
-                    tf.range(chunk_min[1], chunk_max[1] + 1),
-                    tf.range(chunk_min[2], chunk_max[2] + 1),
-                    indexing="ij",
-                )
-                slice_x = tf.reshape(slice_x, (-1, 1))
-                slice_y = tf.reshape(slice_y, (-1, 1))
-                slice_z = tf.reshape(slice_z, (-1, 1))
-                slice_coords = tf.concat([slice_x, slice_y, slice_z], axis=1)
-                slice_coords = tf.cast(
-                    slice_coords[
-                        tf.newaxis,
-                    ],
-                    tf.float32,
-                )
-                chunk_coords = tf.cast(
-                    chunk_coords[
-                        tf.newaxis,
-                    ],
-                    tf.float32,
-                )
-                result = tfa.image.interpolate_spline(
-                    slice_coords, reshape_img, chunk_coords, order=order
-                )
-                result = result[:, :, 0]
-                x, y, z = tf.meshgrid(
-                    tf.range(chunk_index[1], chunk_index[1] + chunk_shape[1]),
-                    tf.range(chunk_index[2], chunk_index[2] + chunk_shape[2]),
-                    tf.range(chunk_index[3], chunk_index[3] + chunk_shape[3]),
-                    indexing="ij",
-                )
-                x, y, z = (
-                    tf.reshape(x, (-1, 1)),
-                    tf.reshape(y, (-1, 1)),
-                    tf.reshape(z, (-1, 1)),
-                )
-                xyz = tf.concat([x, y, z], axis=1)
-                map_coords = xyz[
-                    tf.newaxis,
-                ]
-                chunk_index = tf.tensor_scatter_nd_add(
-                    chunk_index, [[1]], [chunk_shape[1]]
-                )
-                # chunk_index = tf.tensor_scatter_nd_update(chunk_index, [[0]], [0])
-                if i == chunk_size - 2:
-                    chunk_shape = tf.tensor_scatter_nd_update(
-                        chunk_shape,
-                        [[1]],
-                        [tf.shape(coords)[1] - chunk_index[1]],
-                    )
-                total_result = tf.tensor_scatter_nd_add(
-                    total_result, map_coords, result
-                )
-                i = i + 1
-                return i, chunk_index, chunk_shape, total_result
-
-            i = tf.constant(0)
-            _, chunk_index, chunk_shape, total_result = tf.while_loop(
-                cond_to_loop_i,
-                body_fn_i,
-                [i, chunk_index, chunk_shape, total_result],
-            )
-            chunk_index = tf.tensor_scatter_nd_add(
-                chunk_index, [[2]], [chunk_shape[2]]
-            )
-            chunk_index = tf.tensor_scatter_nd_update(chunk_index, [[1]], [0])
-            chunk_shape = tf.tensor_scatter_nd_update(
-                chunk_shape, [[1]], [tf.shape(coords)[1] // chunk_size]
-            )
-            if j == chunk_size - 2:
-                chunk_shape = tf.tensor_scatter_nd_update(
-                    chunk_shape, [[2]], [tf.shape(coords)[2] - chunk_index[2]]
-                )
-            j = j + 1
-            return j, chunk_index, chunk_shape, total_result
-
-        j = tf.constant(0)
-        _, chunk_index, chunk_shape, total_result = tf.while_loop(
-            cond_to_loop_j,
-            body_fn_j,
-            [j, chunk_index, chunk_shape, total_result],
-        )
-        chunk_index = tf.tensor_scatter_nd_add(
-            chunk_index, [[3]], [chunk_shape[3]]
-        )
-        chunk_index = tf.tensor_scatter_nd_update(chunk_index, [[2]], [0])
-        chunk_shape = tf.tensor_scatter_nd_update(
-            chunk_shape, [[2]], [tf.shape(coords)[2] // chunk_size]
-        )
-        if k == chunk_size - 2:
-            chunk_shape = tf.tensor_scatter_nd_update(
-                chunk_shape, [[3]], [tf.shape(coords)[3] - chunk_index[3]]
-            )
-    return total_result
-
 
 def cond_to_loop_i(i, chunk_index, chunk_shape, total_result, chunk_size, coords, img):
     return tf.less(i, chunk_size)
@@ -1347,17 +807,6 @@ def body_fn_i(i, chunk_index, chunk_shape, total_result, chunk_size, coords, img
         chunk_index, [[1]], [chunk_shape[1]]
     )
     # chunk_index = tf.tensor_scatter_nd_update(chunk_index, [[0]], [0])
-    '''
-    if i == chunk_size - 2:
-        chunk_shape = tf.tensor_scatter_nd_update(
-            chunk_shape,
-            [[1]],
-            [
-                tf.shape(coords, out_type=tf.int64)[1]
-                - chunk_index[1]
-            ],
-        )
-    '''
     chunk_shape = tf.cond(tf.equal(i, chunk_size-2), lambda: tf.tensor_scatter_nd_update(chunk_shape, [[1]], [tf.shape(coords, out_type=tf.int64)[1] - chunk_index[1]],), lambda: chunk_shape)
     total_result = tf.tensor_scatter_nd_add(
         total_result, map_coords, result
@@ -1380,14 +829,6 @@ def body_fn_j(j, chunk_index, chunk_shape, total_result, chunk_size, coords, img
     )
     chunk_index = tf.tensor_scatter_nd_update(chunk_index, [[1]], [0])
     chunk_shape = tf.tensor_scatter_nd_update(chunk_shape,[[1]], [tf.shape(coords, out_type=tf.int64)[1] // chunk_size],)
-    '''
-    if j == chunk_size - 2:
-        chunk_shape = tf.tensor_scatter_nd_update(
-            chunk_shape,
-            [[2]],
-            [tf.shape(coords, out_type=tf.int64)[2] - chunk_index[2]],
-        )
-    '''
     chunk_shape = tf.cond(tf.equal(j, chunk_size-2), lambda: tf.tensor_scatter_nd_update(chunk_shape, [[2]], [tf.shape(coords, out_type=tf.int64)[2] - chunk_index[2]],), lambda: chunk_shape)
     j = j + 1
     return j, chunk_index, chunk_shape, total_result, chunk_size, coords, img
@@ -1410,14 +851,6 @@ def body_fn_k(k, chunk_index, chunk_shape, total_result, chunk_size, coords, img
     chunk_shape = tf.tensor_scatter_nd_update(
         chunk_shape, [[2]], [tf.cast(tf.shape(coords)[2], dtype=tf.int64) // chunk_size]
     )
-    '''
-    if k == chunk_size - 2:
-        chunk_shape = tf.tensor_scatter_nd_update(
-            chunk_shape,
-            [[3]],
-            [tf.shape(coords, out_type=tf.int64)[3] - chunk_index[3]],
-        )
-    '''
     chunk_shape = tf.cond(tf.equal(k, chunk_size-2), lambda: tf.tensor_scatter_nd_update(chunk_shape, [[3]], [tf.shape(coords, out_type=tf.int64)[3] - chunk_index[3]],), lambda: chunk_shape)
     k = k + 1
     return k, chunk_index, chunk_shape, total_result, chunk_size, coords, img
@@ -1746,89 +1179,17 @@ def map_coordinates_2d(img, coords, order=3):
     result = tf.reshape(result, tf.shape(coords)[1:])
     return result
 
-
-def map_coordinates(
-    input,
-    coordinates,
-    is_seg=False,
-    result=None,
-    output=None,
-    order=3,
-    mode="constant",
-    cval=0.0,
-    prefilter=True,
-):
-    output_shape = tf.shape(coordinates)[1:]
-    output = tf.zeros(output_shape)
-    if prefilter and order > 1:
-        padded, npad = prepared_for_spline_filter(input, mode, cval)
-        filtered = spline_filter(padded, order, mode=mode)
-    else:
-        npad = 0
-        filtered = input
-    if is_seg:
-        pass
-    else:
-        return output
-
-
-def geometric_transform():
-    pass
-
-
-def spline_filter(input, order=3, output=tf.float32, mode="mirror"):
-    if order not in [0, 1]:
-        axis = tf.constant(0)
-        cond_to_loop = lambda input, order, axis, mode: tf.less(
-            axis, tf.rank(input)
-        )
-        output, _, _, _ = tf.while_loop(
-            cond_to_loop, spline_filter1d, [input, order, axis, mode]
-        )
-    else:
-        output = input
-    return output
-
-
-def spline_filter1d(input, order=3, axis=-1, mode="mirror"):
-    pass
-
-
-def prepared_for_spline_filter(input, mode, cval):
-    if mode in ["nearest", "grid-constant"]:
-        npad = 12
-        if mode == "grid-constant":
-            padded = tf.pad(
-                input,
-                tf.ones((tf.rank(input), 2), dtype=tf.int64) * npad,
-                mode="CONSTANT",
-                constant_values=cval,
-            )
-        elif mode == "nearest":
-            padded = input
-            for _ in tf.range(npad):
-                padded = tf.pad(
-                    padded,
-                    tf.ones((tf.rank(padded), 2), dtype=tf.int64),
-                    mode="SYMMETRIC",
-                )
-    else:
-        npad = 0
-        padded = input
-    return padded, npad
-
-
-def random_crop_fn(data, seg=None, crop_size=128, margin=[0, 0, 0]):
+def random_crop_fn(data, seg=nan, crop_size=128, margin=[0, 0, 0]):
     return crop(data, seg, crop_size, margin, "ramdom")
 
 
-def center_crop_fn(data, crop_size, seg=None):
+def center_crop_fn(data, crop_size, seg=nan):
     return crop(data, seg, crop_size, 0, "center")
 
 
 def crop(
     data,
-    seg=None,
+    seg=nan,
     crop_size=128,
     margins=(0, 0, 0),
     crop_type="center",
@@ -1841,7 +1202,7 @@ def crop(
     data_shape = tf.shape(data, out_type=tf.int64)
     dim = tf.cast(tf.rank(data), dtype=tf.int64) - 2
 
-    if seg is not None:
+    if seg is not nan:
         seg_shape = tf.shape(seg, out_type=tf.int64)
         #  other assertion will not be included here because it doesn't influence the result
 
@@ -1852,17 +1213,17 @@ def crop(
         margins = tf.convert_to_tensor(margins, dtype=tf.int64)
 
     data_return = tf.zeros(tf.concat([data_shape[:2], crop_size], axis=0))
-    if seg is not None:
+    if seg is not nan:
         seg_return = tf.zeros(tf.concat([seg_shape[:2], crop_size], axis=0))
     else:
-        seg_return = None
+        seg_return = nan
     cond_to_loop = lambda b, data_result, seg_result: tf.less(b, data_shape[0])
 
     def body_fn(b, data_result, seg_result):
         data_shape_here = tf.concat(
             [[data_shape[0]], tf.shape(data[b], out_type=tf.int64)], axis=0
         )
-        if seg is not None:
+        if seg is not nan:
             seg_shape_here = tf.concat(
                 [[seg_shape[0]], tf.shape(seg[b])], axis=0
             )
@@ -1926,7 +1287,7 @@ def crop(
         )
         data_cropped = tf.slice(data[b], slicer_data_begin, slicer_data_size)
 
-        if seg_result is not None:
+        if seg_result is not nan:
             slicer_seg_begin = tf.map_fn(lambda d: lbs[d], elems=tf.range(dim))
             slicer_seg_begin = tf.concat(
                 [tf.constant([0], dtype=tf.int64), slicer_seg_begin], axis=0
@@ -2015,11 +1376,6 @@ def create_zero_centered_coordinate_mesh(shape):
         dtype=tf.float32,
     )
     shape = tf.cast((shape - 1), dtype=tf.float32) / 2.0
-    """
-    for d in tf.range(3):
-        coords_d = coords[d] - shape[d]
-        coords = update_tf_channel(coords, d, coords_d)
-    """
     coords = tf.map_fn(
         lambda d: coords[d] - shape[d], elems=tf.range(3), dtype=tf.float32
     )
@@ -2028,7 +1384,7 @@ def create_zero_centered_coordinate_mesh(shape):
     return coords
 
 
-def random_choice(a, axis, sample_shape=None):
+def random_choice(a, axis, sample_shape=[nan]):
     """
 
     :param a: tf.Tensor
@@ -2048,8 +1404,10 @@ def random_choice(a, axis, sample_shape=None):
     >>> random_choice(a, axis=0, samples_shape=(100,))
     <tf.Tensor 'GatherV2_3:0' shape=(100, 20, 30) dtype=float32>
     """
-    if sample_shape is None:
-        sample_shape = [1]
+    if isnan(sample_shape):
+        sample_shape = tf.cast([1], tf.int32)
+    else:
+        sample_shape = tf.cast(sample_shape, tf.int32)
     shape = tf.shape(a)
     dim = shape[axis]
     choice_indices = tf.random.uniform(
@@ -2209,17 +1567,6 @@ def thomas_algorithm(A, B, C, D):
     D = tf.tensor_scatter_nd_update(D, [[0]], [D[0] / B[0]])
     X_last = D[n-1]
     i = n - 2
-    '''
-    cond_to_loop = lambda i, X: tf.greater_equal(i, tf.constant(0))
-    # body_fn = lambda i, X: i - 1, tf.tensor_scatter_nd_update(X, [[i]], [D[i] - C[i] * X[i+1]])
-
-    @tf.function
-    def body_fn(i, X):
-        X = tf.tensor_scatter_nd_update(X, [[i]], [D[i] - C[i] * X[i+1]])
-        i = i - 1
-        return i, X
-    _, X = tf.while_loop(cond_to_loop, body_fn, loop_vars=[i, X])
-    '''
     X = tf.scan(lambda a, i: D[i] - C[i] * a, elems=tf.range(0, n-1, 1), initializer=X_last)
     X = tf.concat([X, [X_last]], axis=0)
     return X
@@ -2232,7 +1579,7 @@ def main():
     patch_center_dist_from_border = [30, 30, 30]
     data = tf.ones([1, 1, 70, 83, 64])
     seg = tf.ones([1, 1, 70, 83, 64])
-    data, seg = augment_spatial(data, seg, patch_size, patch_center_dist_from_border, random_crop=False)
+    data, seg = augment_spatial(data, seg, patch_size, patch_center_dist_from_border, random_crop=TFbF)
     print(data)
     print(seg)
     print(data.shape)
