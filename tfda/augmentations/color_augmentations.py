@@ -231,6 +231,7 @@ if __name__ == "__main__":
 
     with tf.device("/CPU:0"):
         # https://github.com/tensorflow/tensorflow/issues/49202
+        tf.print(augment_gamma(data_sample).shape)
         tf.print(augment_contrast(data_sample).shape)
         tf.print(augment_brightness_additive(data_sample, mu, sigma).shape)
         tf.print(augment_brightness_multiplicative(data_sample).shape)

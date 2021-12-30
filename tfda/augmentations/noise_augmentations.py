@@ -133,5 +133,5 @@ if __name__ == "__main__":
 
     with tf.device("/CPU:0"):
         # https://github.com/tensorflow/tensorflow/issues/49202
+        tf.print(gn_var_fn((0, 0.1)))
         tf.print(augment_gaussian_noise(datasample))
-        # tf.print(gn_var_fn((0, 0.1)))

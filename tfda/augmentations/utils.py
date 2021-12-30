@@ -126,6 +126,9 @@ def create_zero_centered_coordinate_mesh(shape: TFT) -> TFT:
 
 @tf.function(experimental_follow_type_hints=True)
 def elastic_deform_coordinates(coordinates: TFT, alpha: TFT, sigma: TFT):
+    coordinates = tf.cast(coordinates, tf.float32)
+    alpha = tf.cast(alpha, tf.float32)
+    sigma = tf.cast(sigma, tf.float32)
     return (
         tf.map_fn(
             lambda _: gaussian_filter(
@@ -329,25 +332,25 @@ if __name__ == "__main__":
 
     with tf.device("/CPU:0"):
         tf.print(get_range_val([0, 1.]))
-        # coords = create_zero_centered_coordinate_mesh(patch_size)
+        coords = create_zero_centered_coordinate_mesh(patch_size)
 
-        # tf.print(elastic_deform_coordinates(coords, 50., 12.).shape)
-        # assert elastic_deform_coordinates(coords, 50, 12).shape == [
+        tf.print(elastic_deform_coordinates(coords, 50., 12.).shape)
+        # assert elastic_deform_coordinates(coords, 50., 12.).shape == [
         #     3,
         #     40,
         #     56,
         #     40,
         # ]
 
-        # xs = tf.random.uniform(patch_size, 0, 1)
-        # s = xs.shape
-        # tf.print(xs.shape)
-        # x = gaussian_filter(xs, 5, "reflect")
-        # tf.print("\n\n", x[0][0], "\n", x.shape, x[0].shape)
-        # x_ = sf.gaussian_filter(xs, 5, mode="reflect")
-        # tf.print("----\n", x_[0][0], "\n", x_.shape, x_[0].shape)
+        xs = tf.random.uniform(patch_size, 0, 1)
+        s = xs.shape
+        tf.print(xs.shape)
+        x = gaussian_filter(xs, 5, "reflect")
+        tf.print("\n\n", x[0][0], "\n", x.shape, x[0].shape)
+        x_ = sf.gaussian_filter(xs, 5, mode="reflect")
+        tf.print("----\n", x_[0][0], "\n", x_.shape, x_[0].shape)
 
-        # tf.print("----------")
-        # tf.print(rotate_coords_3d(coords, 1.0, 1.0, 1.0).shape)
+        tf.print("----------")
+        tf.print(rotate_coords_3d(coords, 1.0, 1.0, 1.0).shape)
 
-        # tf.print(to_one_hot(tf.zeros([9, 40, 56, 40]), [1., 2, 3]).shape)
+        tf.print(to_one_hot(tf.zeros([9, 40, 56, 40]), [1., 2, 3]).shape)
