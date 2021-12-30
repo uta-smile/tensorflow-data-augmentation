@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 # Others
-from tfda.base import TFDABase, TFT
+from tfda.base import DTFT, TFDABase, TFT
 from tfda.utils import nan
 
 
@@ -56,8 +56,8 @@ class SimulateLowResolutionTransform(TFDABase):
         self.zoom_range = zoom_range
         self.ignore_axes = ignore_axes
 
-    def call(self, **data_dict):
-
+    def call(self, data_dict: DTFT) -> DTFT:
+        """Call the transform."""
         data_dict[self.data_key] = tf.map_fn(
             lambda xs: tf.cond(
                 tf.random.uniform(()) < self.p_per_sample,
@@ -75,29 +75,11 @@ class SimulateLowResolutionTransform(TFDABase):
             ),
             data_dict[self.data_key],
         )
-
-        # data_list = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
-        # for b in tf.range(tf.shape(data_dict[self.data_key])[0]):
-        #     if tf.random.uniform(()) < self.p_per_sample:
-        #         data_b = augment_linear_downsampling_scipy(
-        #             data_dict[self.data_key][b],
-        #             zoom_range=self.zoom_range,
-        #             per_channel=self.per_channel,
-        #             p_per_channel=self.p_per_channel,
-        #             channels=self.channels,
-        #             order_downsample=self.order_downsample,
-        #             order_upsample=self.order_upsample,
-        #             ignore_axes=self.ignore_axes,
-        #         )
-        #     else:
-        #         data_b = data_dict[self.data_key][b]
-        #     data_list = data_list.write(b, data_b)
-        # data_dict[self.data_key] = data_list.stack()
         return data_dict
 
 
 @tf.function
-def augment_liner_help(target_shape, dim, shp, ignore_axes):
+def augment_liner_help(target_shape: TFT, dim: TFT, shp: TFT, ignore_axes: TFT):
     return tf.map_fn(
         lambda d: tf.cond(
             tf.math.reduce_any(ignore_axes == d),
@@ -206,7 +188,7 @@ def augment_linear_downsampling_scipy(
 
 
 @tf.function
-def volume_resize(input_data, target_shape, method):
+def volume_resize(input_data: TFT, target_shape: TFT, method: TFT):
     target_shape = tf.cast(target_shape, tf.int32)
     image = tf.transpose(input_data, perm=[1, 2, 0])
     image = tf.image.resize(image, target_shape[1:], method=method)
@@ -219,7 +201,7 @@ if __name__ == "__main__":
     with tf.device("/CPU:0"):
         images = tf.random.uniform((8, 2, 20, 376, 376))
         labels = tf.random.uniform(
-            (8, 1, 20, 376, 376), minval=0, maxval=2, dtype=tf.int32
+            (8, 1, 20, 376, 376), minval=0, maxval=2, dtype=tf.float32
         )
         data_dict = {"data": images, "seg": labels}
         tf.print(
@@ -233,7 +215,7 @@ if __name__ == "__main__":
             order_upsample=3,
             p_per_sample=0.25,
             ignore_axes=(0,),
-        )(**data_dict)
+        )(data_dict)
         tf.print(
             data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
         )  # (8, 40, 376, 376) (8, 20, 376, 376)

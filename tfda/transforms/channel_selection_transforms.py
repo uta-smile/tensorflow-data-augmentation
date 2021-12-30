@@ -40,7 +40,7 @@ import tensorflow as tf
 
 # Others
 from tfda.base import DTFT, TFT, TFDABase
-from tfda.utils import TFbT, to_tf_bool, to_tf_float, to_tf_int
+from tfda.utils import TFbT, to_tf_bool, to_tf_float, to_tf_int, nan
 
 
 class DataChannelSelectionTransform(TFDABase):
@@ -50,7 +50,7 @@ class DataChannelSelectionTransform(TFDABase):
         super().__init__(**kws)
         self.channels = channels
 
-    def call(self, **data_dict: TFT) -> DTFT:
+    def call(self, data_dict: DTFT) -> DTFT:
         """Call the transform."""
 
         data = tf.map_fn(
@@ -58,16 +58,11 @@ class DataChannelSelectionTransform(TFDABase):
         )
 
         shape = tf.shape(data)
+        tf.print(shape)
 
         data_dict[self.data_key] = tf.reshape(
             data, (shape[1], shape[0], *shape[2:])
         )
-
-        # data_dict[self.data_key] = data_dict[self.data_key].map(
-        #     lambda x: tf.stack(
-        #         list(map(lambda i: x[:, i], self.channels)), axis=1
-        #     )
-        # )
         return data_dict
 
 
@@ -84,11 +79,11 @@ class SegChannelSelectionTransform(TFDABase):
         self.channels = channels
         self.keep_discarded = keep_discarded
 
-    def call(self, **data_dict: TFT) -> DTFT:
+    def call(self, data_dict: DTFT) -> DTFT:
         """Call the transform."""
-        seg = data_dict.get(self.label_key)
+        seg = data_dict.get(self.label_key, nan)
 
-        if to_tf_bool(seg is None):
+        if tf.math.reduce_any(tf.math.is_nan(seg)):
             tf.get_logger().warn(
                 "You used SegChannelSelectionTransform but "
                 "there is no 'seg' key in your data_dict, returning "
@@ -125,13 +120,14 @@ if __name__ == "__main__":
             .batch(1)
             .batch(2)
             .batch(4)
+            .prefetch(4)
         )
     )
 
     with tf.device("/CPU:0"):
 
-        dcst = DataChannelSelectionTransform(to_tf_float([]))
-        tf.print(dcst(data=dataset)["data"].shape)
+        # dcst = DataChannelSelectionTransform(to_tf_float([]))
+        # tf.print(dcst(dict(data=dataset))["data"].shape)
 
         scst = SegChannelSelectionTransform(tf.cast([0, 1], tf.float32))
-        tf.print(scst(seg=dataset)["seg"].shape)
+        tf.print(scst(dict(seg=dataset))["seg"].shape)

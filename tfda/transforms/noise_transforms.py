@@ -38,10 +38,13 @@ Noise Transforms
 
 import tensorflow as tf
 
+# Types
+from typing import Optional, Tuple
+
 # Others
 from tfda.augmentations.noise_augmentations import (
     augment_gaussian_blur,
-    augment_gaussian_noise,
+    augment_gaussian_noise
 )
 from tfda.base import DTFT, TFT, TFDABase
 from tfda.utils import TFbF, TFbT
@@ -62,13 +65,7 @@ class GaussianNoiseTransform(TFDABase):
     CAREFUL: This transform will modify the value range of your data!
     """
 
-    # noise_variance: tuple[float, float] = 0, 0.1
-    # p_per_sample: float = 1
-    # p_per_channel: float = 1
-    # per_channel: bool = False
-    # data_key: str = "data"
-
-    def call(self, **data_dict: TFT) -> DTFT:
+    def call(self, data_dict: DTFT) -> DTFT:
         """Call the transform."""
         data_dict[self.data_key] = tf.map_fn(
             lambda x: tf.cond(
@@ -83,21 +80,6 @@ class GaussianNoiseTransform(TFDABase):
             ),
             data_dict[self.data_key],
         )
-        # data_dict[self.data_key] = data_dict[self.data_key].map(
-        #     lambda x_: tf.map_fn(
-        #         lambda x: tf.cond(
-        #             tf.random.uniform(()) < self.p_per_sample,
-        #             lambda: augment_gaussian_noise(
-        #                 x,
-        #                 to_tf_float(self.noise_variance),
-        #                 to_tf_float(self.p_per_channel),
-        #                 to_tf_bool(self.per_channel),
-        #             ),
-        #             lambda: x,
-        #         ),
-        #         x_,
-        #     ),
-        # )
         return data_dict
 
 
@@ -113,7 +95,8 @@ class GaussianBlurTransform(TFDABase):
         self.different_sigma_per_channel = different_sigma_per_channel
         self.blur_sigma = blur_sigma
 
-    def call(self, **data_dict: TFT) -> DTFT:
+    def call(self, data_dict: DTFT) -> DTFT:
+
         data_dict[self.data_key] = tf.map_fn(
             lambda x: tf.cond(
                 tf.less(tf.random.uniform(()), self.p_per_sample),
@@ -130,7 +113,6 @@ class GaussianBlurTransform(TFDABase):
         return data_dict
 
 
-
 if __name__ == "__main__":
     with tf.device("/CPU:0"):
         dataset = next(
@@ -143,12 +125,12 @@ if __name__ == "__main__":
                 .batch(40)
                 .batch(1)
                 .batch(2)
-                .batch(4)
+                .prefetch(4)
             )
         )
         t = GaussianNoiseTransform(p_per_sample=0.3)
 
-        tf.print(t(data=dataset)["data"].shape)
+        tf.print(t(dict(data=dataset))["data"].shape)
 
         images = tf.random.uniform((8, 2, 20, 376, 376))
         labels = tf.random.uniform(
@@ -170,12 +152,12 @@ if __name__ == "__main__":
         import time
 
         print(time.time())
-        data_dict = gbt(seg=images, data=labels)
+        data_dict = gbt(dict(seg=images, data=labels))
         tf.print(
             data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
         )  # (8, 40, 376, 376) (8, 20, 376, 376)
         print(time.time())
-        data_dict = gbt(data=images, seg=labels)
+        data_dict = gbt(dict(data=images, seg=labels))
         tf.print(
             data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
         )  # (8, 40, 376, 376) (8, 20, 376, 376)

@@ -48,11 +48,10 @@ DTFT = Dict[str, tf.Tensor]
 T = TypeVar("T")
 Seqs = Union[Sequence[T], Iterable[T]]
 
-
 # tf.debugging.set_log_device_placement(True)
 
 
-class TFDABase:
+class TFDABase(tf.keras.layers.Layer):
     """Tensorflow data augmentation base."""
 
     def __init__(
@@ -67,7 +66,9 @@ class TFDABase:
         preserve_range: TFT = True,
         noise_variance: TFT = (0, 0.1),
         different_sigma_per_channel: TFT = True,
+        **kws,
     ) -> None:
+        super().__init__(**kws)
         self.p_per_sample = p_per_sample
         self.p_per_channel = p_per_channel
         self.per_channel = per_channel
@@ -79,15 +80,6 @@ class TFDABase:
 
         self.data_key = data_key
         self.label_key = label_key
-
-    @abc.abstractmethod
-    def call(self, **data_dict: TFT):
-        """Call the base transform."""
-        raise NotImplementedError("Abstract, so implement")
-
-    
-    def __call__(self, *args, **kws):
-        return self.call(*args, **kws)
 
 
 class RndTransform(TFDABase):
@@ -129,10 +121,10 @@ class Compose(TFDABase):
         self.transforms = chain(self.transforms, (transform,))
         return self
 
-    def call(self, **data_dict: TFT) -> DTFT:
+    def call(self, data_dict: DTFT) -> DTFT:
         """Call the transforms."""
         for transform in self.transforms:
-            data_dict = transform(**data_dict)
+            data_dict = transform(data_dict)
         return data_dict
 
     def __repr__(self) -> str:

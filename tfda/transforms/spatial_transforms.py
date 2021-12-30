@@ -77,7 +77,9 @@ class SpatialTransform(TFDABase):
         independent_scale_for_each_axis: TFT = TFbF,
         p_rot_per_axis: TFT = TFf1,
         p_independent_scale_per_axis: TFT = TFf1,
+        **kws,
     ) -> None:
+        super().__init__(**kws)
         self.patch_size = patch_size
         self.patch_center_dist_from_border = patch_center_dist_from_border
         self.do_elastic_deform = do_elastic_deform
@@ -105,9 +107,9 @@ class SpatialTransform(TFDABase):
         self.p_rot_per_axis = p_rot_per_axis
         self.p_independent_scale_per_axis = p_independent_scale_per_axis
 
-    def call(self, **data_dict: TFT) -> DTFT:
-        data = data_dict.get(self.data_key)
-        seg = data_dict.get(self.label_key)
+    def call(self, data_dict: DTFT) -> DTFT:
+        data = data_dict.get(self.data_key, nan)
+        seg = data_dict.get(self.label_key, nan)
 
         # if self.patch_size is None:
         #     if len(data.shape) == 4:
@@ -151,7 +153,7 @@ class SpatialTransform(TFDABase):
         )
 
         data_dict[self.data_key] = ret_val[0]
-        if seg is not None:
+        if not tf.math.reduce_any(tf.math.is_nan(seg)):
             data_dict[self.label_key] = ret_val[1]
         return data_dict
 
@@ -169,23 +171,24 @@ class MirrorTransform(TFDABase):
         super().__init__(**kws)
         self.axes = axes
 
-    def call(self, **data_dict: TFT) -> DTFT:
+    def call(self, data_dict: DTFT) -> DTFT:
         data = data_dict.get(self.data_key, nan)
         seg = data_dict.get(self.label_key, nan)
 
         data_list = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
-        seg_list  = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
+        seg_list = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
 
         for b in tf.range(tf.shape(data)[0]):
             if tf.random.uniform(()) < self.p_per_sample:
                 sample_seg = nan
                 if not tf.math.reduce_any(tf.math.is_nan(seg)):
                     sample_seg = seg[b]
-                ret_val = augment_mirroring(data[b], sample_seg, axes=self.axes)
+                ret_val = augment_mirroring(
+                    data[b], sample_seg, axes=self.axes
+                )
                 data_list = data_list.write(b, ret_val[0])
                 if not tf.math.reduce_any(tf.math.is_nan(seg)):
                     seg_list = seg_list.write(b, ret_val[1])
-
 
         data_dict["data"] = data_list.stack()
         if tf.rank(seg) > 0 and seg_list.size() > 0:
@@ -214,8 +217,8 @@ if __name__ == "__main__":
     sa = SpatialTransform(tf.cast([40, 56, 40], tf.int64), random_crop=TFbF)
 
     with tf.device("/CPU:0"):
-    # mirrored_strategy = tf.distribute.MirroredStrategy()
-    # with mirrored_strategy.scope():
+        # mirrored_strategy = tf.distribute.MirroredStrategy()
+        # with mirrored_strategy.scope():
         # tf.print(sa(data=data_sample, seg=seg_sample))
 
         images = tf.random.uniform((8, 2, 20, 376, 376))
@@ -226,7 +229,7 @@ if __name__ == "__main__":
         tf.print(
             data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
         )  # (8, 2, 20, 376, 376) (8, 1, 20, 376, 376)
-        data_dict = MirrorTransform((0, 1, 2))(**data_dict)
+        data_dict = MirrorTransform((0, 1, 2))(dict(data=images, seg=labels))
         tf.print(
             data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
         )  # (8, 2, 20, 376, 376) (8, 1, 20, 376, 376)
