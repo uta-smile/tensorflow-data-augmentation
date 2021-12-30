@@ -12,7 +12,7 @@ from copy import deepcopy
 import tensorflow as tf
 
 # Types
-from typing import Tuple
+from typing import Dict, Tuple
 
 # Others
 import tensorflow_addons as tfa
@@ -653,7 +653,7 @@ def augment_spatial(
     )
     return data_result, seg_result
 
-
+@tf.function
 def interpolate_img(
     img, coords, order=3, mode="nearest", cval=0.0, is_seg=TFbF
 ):
@@ -680,13 +680,13 @@ def interpolate_img(
     else:
         return map_coordinates_img(img, coords, order)
 
-
+@tf.function
 def map_coordinates_seg(seg, cl, coords, result, order):
     seg = tf.cast(tf.equal(seg, cl), dtype=tf.float32)
     # order = tf.cast(order, tf.int64)
     new_seg = tf.cond(
         tf.equal(tf.rank(seg), tf.constant(3)),
-        lambda: map_chunk_coordinates_3d(seg, coords, order),
+        lambda: map_chunk_coordinates_3d_2(seg, coords, order),
         lambda: map_coordinates_2d(seg, coords, order),
     )
     indices = tf.where(tf.greater_equal(new_seg, tf.constant(0.5)))
@@ -695,15 +695,16 @@ def map_coordinates_seg(seg, cl, coords, result, order):
     )
     return seg, cl, coords, result, order
 
+@tf.function
 def map_coordinates_img(img, coords, order=3):
     # return tf.cond(tf.equal(tf.rank(img), tf.constant(3)), lambda: map_coordinates_3d(img, coords, order), lambda: map_coordinates_2d(img, coords, order))
     return tf.cond(
         tf.equal(tf.rank(img), tf.constant(3)),
-        lambda: map_chunk_coordinates_3d(img, coords, order),
+        lambda: map_chunk_coordinates_3d_2(img, coords, order),
         lambda: map_coordinates_2d(img, coords, order),
     )
 
-
+@tf.function
 def map_coordinates_3d(img, coords, order=3):
     new_coords = tf.concat(
         [
@@ -741,9 +742,11 @@ def map_coordinates_3d(img, coords, order=3):
     result = tf.reshape(result, tf.shape(coords)[1:])
     return result
 
+@tf.function
 def cond_to_loop_i(i, chunk_index, chunk_shape, total_result, chunk_size, coords, img):
     return tf.less(i, chunk_size)
 
+@tf.function
 def body_fn_i(i, chunk_index, chunk_shape, total_result, chunk_size, coords, img):
     chunk_coords = tf.slice(coords, chunk_index, chunk_shape)
     chunk_coords_0, chunk_coords_1, chunk_coords_2 = (
@@ -819,9 +822,11 @@ def body_fn_i(i, chunk_index, chunk_shape, total_result, chunk_size, coords, img
     i = i + 1
     return i, chunk_index, chunk_shape, total_result, chunk_size, coords, img
 
+@tf.function
 def cond_to_loop_j(j, chunk_index, chunk_shape, total_result, chunk_size, coords, img):
     return tf.less(j, chunk_size)
 
+@tf.function
 def body_fn_j(j, chunk_index, chunk_shape, total_result, chunk_size, coords, img):
     i = tf.constant(0, dtype=tf.int64)
     _, chunk_index, chunk_shape, total_result, chunk_size, coords, img = tf.while_loop(
@@ -838,10 +843,11 @@ def body_fn_j(j, chunk_index, chunk_shape, total_result, chunk_size, coords, img
     j = j + 1
     return j, chunk_index, chunk_shape, total_result, chunk_size, coords, img
 
-
+@tf.function
 def cond_to_loop_k(k, chunk_index, chunk_shape, total_result, chunk_size, coords, img):
     return tf.less(k, chunk_size)
 
+@tf.function
 def body_fn_k(k, chunk_index, chunk_shape, total_result, chunk_size, coords, img):
     j = tf.constant(0, dtype=tf.int64)
     _, chunk_index, chunk_shape, total_result, chunk_size, coords, img = tf.while_loop(
@@ -860,6 +866,7 @@ def body_fn_k(k, chunk_index, chunk_shape, total_result, chunk_size, coords, img
     k = k + 1
     return k, chunk_index, chunk_shape, total_result, chunk_size, coords, img
 
+@tf.function
 def map_chunk_coordinates_3d_2(img, coords, order=3, chunk_size=4):
     chunk_size = tf.constant(chunk_size, dtype=tf.int64)
     chunk_shape = tf.cast(tf.shape(coords)[1:], dtype=tf.int64) // chunk_size
@@ -873,7 +880,7 @@ def map_chunk_coordinates_3d_2(img, coords, order=3, chunk_size=4):
     )
     return total_result
 
-
+@tf.function
 def map_chunk_coordinates_3d(img, coords, order=3, chunk_size=4):
     img = tf.cond(tf.equal(tf.rank(img), tf.constant(3)), lambda: img, lambda: tf.zeros((8, 8, 8)))
     chunk_shape = tf.shape(coords)[1:] // chunk_size
@@ -1036,7 +1043,7 @@ def map_chunk_coordinates_3d(img, coords, order=3, chunk_size=4):
     )
     return total_result
 
-
+@tf.function
 def map_chunk_coordinates_2d(img, coords, order=3, chunk_size=4):
     img = tf.cond(tf.equal(tf.rank(img), tf.constant(2)), lambda: img, lambda: img[0])
     chunk_size = tf.constant(chunk_size, dtype=tf.int64)
@@ -1156,7 +1163,7 @@ def map_chunk_coordinates_2d(img, coords, order=3, chunk_size=4):
 
     return total_result
 
-
+@tf.function
 def map_coordinates_2d(img, coords, order=3):
     img = tf.cond(tf.equal(tf.rank(img), tf.constant(2)), lambda: img, lambda: img[0])
     new_coords = tf.concat(
@@ -1184,24 +1191,25 @@ def map_coordinates_2d(img, coords, order=3):
     result = tf.reshape(result, tf.shape(coords)[1:])
     return result
 
+@tf.function
 def random_crop_fn(data, seg=nan, crop_size=128, margin=[0, 0, 0]):
     return crop(data, seg, crop_size, margin, "ramdom")
 
-
+@tf.function
 def center_crop_fn(data, crop_size, seg=nan):
     return crop(data, seg, crop_size, 0, "center")
 
-
+@tf.function(experimental_follow_type_hints=True)
 def crop(
-    data,
-    seg=nan,
-    crop_size=128,
-    margins=(0, 0, 0),
-    crop_type="center",
-    pad_mode="constant",
-    pad_kwargs={"constant_values": 0},
-    pad_mode_seg="constant",
-    pad_kwargs_seg={"constant_values": 0},
+    data: tf.Tensor,
+    seg: tf.Tensor = nan,
+    crop_size: tf.Tensor = 128,
+    margins: tf.Tensor = [0, 0, 0],
+    crop_type: str = "center",
+    pad_mode: str = "constant",
+    pad_kwargs: Dict[str, tf.Tensor] = {"constant_values": 0},
+    pad_mode_seg: str="constant",
+    pad_kwargs_seg: Dict[str, tf.Tensor] = {"constant_values": 0},
 ):
 
     data_shape = tf.shape(data, out_type=tf.int64)
@@ -1214,136 +1222,140 @@ def crop(
     # all assertion is removed because it is unnecessary here
     if not isinstance(crop_size, tf.Tensor):
         crop_size = tf.convert_to_tensor(crop_size)
-    if not isinstance(margins, tf.Tensor):
-        margins = tf.convert_to_tensor(margins, dtype=tf.int64)
+    margins = tf.constant([0, 0, 0], dtype=tf.int64)
 
     data_return = tf.zeros(tf.concat([data_shape[:2], crop_size], axis=0))
     if seg is not nan:
         seg_return = tf.zeros(tf.concat([seg_shape[:2], crop_size], axis=0))
     else:
         seg_return = nan
-    cond_to_loop = lambda b, data_result, seg_result: tf.less(b, data_shape[0])
-
-    def body_fn(b, data_result, seg_result):
-        data_shape_here = tf.concat(
-            [[data_shape[0]], tf.shape(data[b], out_type=tf.int64)], axis=0
-        )
-        if seg is not nan:
-            seg_shape_here = tf.concat(
-                [[seg_shape[0]], tf.shape(seg[b])], axis=0
-            )
-
-        if crop_type == "center":
-            lbs = get_lbs_for_center_crop(crop_size, data_shape_here)
-        else:
-            lbs = get_lbs_for_random_crop(crop_size, data_shape_here, margins)
-
-        need_to_pad_lb = tf.map_fn(
-            lambda d: tf.abs(
-                tf.minimum(tf.constant(0, dtype=tf.int64), lbs[d])
-            ),
-            elems=tf.range(dim),
-        )
-        need_to_pad_ub = tf.map_fn(
-            lambda d: tf.abs(
-                tf.minimum(
-                    tf.constant(0, tf.int64),
-                    data_shape_here[d + 2] - (lbs[d] + crop_size[d]),
-                )
-            ),
-            elems=tf.range(dim),
-        )
-        need_to_pad = tf.concat(
-            [
-                tf.reshape(need_to_pad_lb, (-1, 1)),
-                tf.reshape(need_to_pad_ub, (-1, 1)),
-            ],
-            axis=1,
-        )
-        need_to_pad = tf.concat(
-            [tf.constant([[0, 0]], dtype=tf.int64), need_to_pad], axis=0
-        )
-
-        ubs = tf.map_fn(
-            lambda d: tf.minimum(
-                lbs[d] + crop_size[d], data_shape_here[d + 2]
-            ),
-            elems=tf.range(dim),
-            dtype=tf.int64,
-        )
-        lbs = tf.map_fn(
-            lambda d: tf.maximum(tf.constant(0, tf.int64), lbs[d]),
-            elems=tf.range(dim),
-            dtype=tf.int64,
-        )
-
-        slicer_data_begin = tf.map_fn(
-            lambda d: lbs[d], elems=tf.range(dim), dtype=tf.int64
-        )
-        slicer_data_begin = tf.concat(
-            [tf.constant([0], dtype=tf.int64), slicer_data_begin], axis=0
-        )
-
-        slicer_data_size = tf.map_fn(
-            lambda d: ubs[d] - lbs[d], elems=tf.range(dim), dtype=tf.int64
-        )
-        slicer_data_size = tf.concat(
-            [[data_shape_here[1]], slicer_data_size], axis=0
-        )
-        data_cropped = tf.slice(data[b], slicer_data_begin, slicer_data_size)
-
-        if seg_result is not nan:
-            slicer_seg_begin = tf.map_fn(lambda d: lbs[d], elems=tf.range(dim))
-            slicer_seg_begin = tf.concat(
-                [tf.constant([0], dtype=tf.int64), slicer_seg_begin], axis=0
-            )
-
-            slicer_seg_size = tf.map_fn(
-                lambda d: ubs[d] - lbs[d], elems=tf.range(dim), dtype=tf.int64
-            )
-            slicer_seg_size = tf.concat(
-                [[seg_shape_here[1]], slicer_seg_size], axis=0
-            )
-            seg_cropped = tf.slice(seg[b], slicer_seg_begin, slicer_seg_size)
-
-        data_result_b = tf.cond(
-            tf.reduce_any(
-                tf.less(tf.constant(0, dtype=tf.int64), need_to_pad)
-            ),
-            lambda: pad(data_cropped, need_to_pad, pad_mode, pad_kwargs),
-            lambda: data_cropped,
-        )
-        seg_result_b = tf.cond(
-            tf.reduce_any(
-                tf.less(tf.constant(0, dtype=tf.int64), need_to_pad)
-            ),
-            lambda: pad(
-                seg_cropped, need_to_pad, pad_mode_seg, pad_kwargs_seg
-            ),
-            lambda: seg_cropped,
-        )
-        data_result = update_tf_channel(data_result, b, data_result_b)
-        seg_result = update_tf_channel(seg_result, b, seg_result_b)
-
-        b = b + 1
-        return b, data_result, seg_result
+    cond_to_loop = lambda b, data_return, seg_return, data_shape, data, seg_shape, seg, crop_type, crop_size, margins, dim, pad_mode, pad_kwargs, pad_mode_seg, pad_kwargs_seg: tf.less(b, data_shape[0])
 
     b = tf.constant(0, dtype=tf.int64)
-    _, data_return, seg_return = tf.while_loop(
-        cond_to_loop, body_fn, [b, data_return, seg_return]
+    _, data_return, seg_return, _, _, _, _, _, _, _, _, _, _, _, _ = tf.while_loop(
+        cond_to_loop, crop_body_fn, [b, data_return, seg_return, data_shape, data, seg_shape, seg, crop_type, crop_size, margins, dim, pad_mode, pad_kwargs, pad_mode_seg, pad_kwargs_seg]
     )
     return data_return, seg_return
 
+@tf.function
+def crop_body_fn(b, data_result, seg_result, data_shape, data, seg_shape, seg, crop_type, crop_size, margins, dim, pad_mode, pad_kwargs, pad_mode_seg, pad_kwargs_seg):
+    data_shape_here = tf.concat(
+        [[data_shape[0]], tf.shape(data[b], out_type=tf.int64)], axis=0
+    )
+    if not isnan(seg):
+        seg_shape_here = tf.concat(
+            [[seg_shape[0]], tf.shape(seg[b])], axis=0
+        )
+    else: # TODO here, we will not go here because seg will not be nan in real data
+        seg_shape_here = tf.concat(
+            [[seg_shape[0]], tf.shape(seg[b])], axis=0
+        ) + tf.cast(nan, tf.int32)
 
+    if crop_type == "center":
+        lbs = tf.cast(get_lbs_for_center_crop(crop_size, data_shape_here), tf.int64)
+    else:
+        lbs = tf.cast(get_lbs_for_random_crop(crop_size, data_shape_here, margins), tf.int64)
+
+    need_to_pad_lb = tf.map_fn(
+        lambda d: tf.abs(
+            tf.minimum(tf.constant(0, dtype=tf.int64), lbs[d])
+        ),
+        elems=tf.range(dim),
+    )
+    need_to_pad_ub = tf.map_fn(
+        lambda d: tf.abs(
+            tf.minimum(
+                tf.constant(0, tf.int64),
+                data_shape_here[d + 2] - (lbs[d] + crop_size[d]),
+            )
+        ),
+        elems=tf.range(dim),
+    )
+    need_to_pad = tf.concat(
+        [
+            tf.reshape(need_to_pad_lb, (-1, 1)),
+            tf.reshape(need_to_pad_ub, (-1, 1)),
+        ],
+        axis=1,
+    )
+    need_to_pad = tf.concat(
+        [tf.constant([[0, 0]], dtype=tf.int64), need_to_pad], axis=0
+    )
+
+    ubs = tf.map_fn(
+        lambda d: tf.minimum(
+            lbs[d] + crop_size[d], data_shape_here[d + 2]
+        ),
+        elems=tf.range(dim),
+        dtype=tf.int64,
+    )
+    lbs = tf.map_fn(
+        lambda d: tf.maximum(tf.constant(0, tf.int64), lbs[d]),
+        elems=tf.range(dim),
+        dtype=tf.int64,
+    )
+
+    slicer_data_begin = tf.map_fn(
+        lambda d: lbs[d], elems=tf.range(dim), dtype=tf.int64
+    )
+    slicer_data_begin = tf.concat(
+        [tf.constant([0], dtype=tf.int64), slicer_data_begin], axis=0
+    )
+
+    slicer_data_size = tf.map_fn(
+        lambda d: ubs[d] - lbs[d], elems=tf.range(dim), dtype=tf.int64
+    )
+    slicer_data_size = tf.concat(
+        [[data_shape_here[1]], slicer_data_size], axis=0
+    )
+    data_cropped = tf.slice(data[b], slicer_data_begin, slicer_data_size)
+
+    if seg_result is not nan:
+        slicer_seg_begin = tf.map_fn(lambda d: lbs[d], elems=tf.range(dim))
+        slicer_seg_begin = tf.concat(
+            [tf.constant([0], dtype=tf.int64), slicer_seg_begin], axis=0
+        )
+
+        slicer_seg_size = tf.map_fn(
+            lambda d: ubs[d] - lbs[d], elems=tf.range(dim), dtype=tf.int64
+        )
+        slicer_seg_size = tf.concat(
+            [[seg_shape_here[1]], slicer_seg_size], axis=0
+        )
+        seg_cropped = tf.slice(seg[b], slicer_seg_begin, slicer_seg_size)
+
+    data_result_b = tf.cond(
+        tf.reduce_any(
+            tf.less(tf.constant(0, dtype=tf.int64), need_to_pad)
+        ),
+        lambda: pad(data_cropped, need_to_pad, pad_mode, pad_kwargs),
+        lambda: data_cropped,
+    )
+    seg_result_b = tf.cond(
+        tf.reduce_any(
+            tf.less(tf.constant(0, dtype=tf.int64), need_to_pad)
+        ),
+        lambda: pad(
+            seg_cropped, need_to_pad, pad_mode_seg, pad_kwargs_seg
+        ),
+        lambda: seg_cropped,
+    )
+    data_result = update_tf_channel(data_result, b, data_result_b)
+    seg_result = update_tf_channel(seg_result, b, seg_result_b)
+
+    b = b + 1
+    return b, data_result, seg_result, data_shape, data, seg_shape, seg, crop_type, crop_size, margins, dim, pad_mode, pad_kwargs, pad_mode_seg, pad_kwargs_seg
+
+@tf.function
 def pad(data, need_to_pad, pad_mode, pad_kwargs):
     return tf.pad(
         data,
         need_to_pad,
-        mode=pad_mode,
-        constant_values=pad_kwargs["constant_values"],
+        mode='constant', #TODO hard code for pad mode.
+        constant_values=tf.cast(pad_kwargs["constant_values"], tf.float32),
     )
 
-
+@tf.function
 def get_lbs_for_center_crop(crop_size, data_shape):
     data_shape = tf.cast(data_shape, tf.int64)
     lbs = tf.map_fn(
@@ -1352,7 +1364,7 @@ def get_lbs_for_center_crop(crop_size, data_shape):
     )
     return lbs
 
-
+@tf.function
 def get_lbs_for_random_crop(crop_size, data_shape, margins):
     lbs = tf.map_fn(
         lambda i: tf.cond(
@@ -1365,11 +1377,11 @@ def get_lbs_for_random_crop(crop_size, data_shape, margins):
             ),
             lambda: (data_shape[i + 2] - crop_size[i]) // 2,
         ),
-        elems=tf.range(tf.shape(data_shape)[0] - 2),
+        elems=tf.range(tf.shape(data_shape, out_type=tf.int64)[0] - 2),
     )
     return lbs
 
-
+@tf.function
 def create_zero_centered_coordinate_mesh(shape):
     coords = tf.convert_to_tensor(
         tf.meshgrid(
@@ -1388,7 +1400,7 @@ def create_zero_centered_coordinate_mesh(shape):
 
     return coords
 
-
+@tf.function
 def random_choice(a, axis, sample_shape=[nan]):
     """
 
@@ -1425,7 +1437,7 @@ def random_choice(a, axis, sample_shape=[nan]):
     """
     return samples
 
-
+@tf.function
 def update_tf_channel(data, idx, update_value):
     shape = data.get_shape()
     update_value = update_value[
