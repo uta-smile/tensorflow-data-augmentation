@@ -1,8 +1,8 @@
 import tensorflow as tf
 
-# Others
-from tfda.base import DTFT, TFDABase, TFT
-from tfda.utils import nan
+# Local
+from tfda.base import DTFT, TFDABase
+from tfda.defs import nan
 
 
 class SimulateLowResolutionTransform(TFDABase):
@@ -34,15 +34,15 @@ class SimulateLowResolutionTransform(TFDABase):
 
     def __init__(
         self,
-        zoom_range: TFT = (0.5, 1),
-        per_channel: TFT = False,
-        p_per_channel: TFT = 1.0,
-        channels: TFT = nan,
-        order_downsample: TFT = 1,
-        order_upsample: TFT = 0,
-        data_key: TFT = "data",
-        p_per_sample: TFT = 1.0,
-        ignore_axes: TFT = nan,
+        zoom_range: tf.Tensor = (0.5, 1),
+        per_channel: tf.Tensor = False,
+        p_per_channel: tf.Tensor = 1.0,
+        channels: tf.Tensor = nan,
+        order_downsample: tf.Tensor = 1,
+        order_upsample: tf.Tensor = 0,
+        data_key: tf.Tensor = "data",
+        p_per_sample: tf.Tensor = 1.0,
+        ignore_axes: tf.Tensor = nan,
         **kws
     ):
         super().__init__(**kws)
@@ -81,7 +81,12 @@ class SimulateLowResolutionTransform(TFDABase):
 
 
 @tf.function
-def augment_liner_help(target_shape: TFT, dim: TFT, shp: TFT, ignore_axes: TFT):
+def augment_liner_help(
+    target_shape: tf.Tensor,
+    dim: tf.Tensor,
+    shp: tf.Tensor,
+    ignore_axes: tf.Tensor,
+):
     return tf.map_fn(
         lambda d: tf.cond(
             tf.math.reduce_any(ignore_axes == d),
@@ -95,14 +100,14 @@ def augment_liner_help(target_shape: TFT, dim: TFT, shp: TFT, ignore_axes: TFT):
 
 @tf.function
 def augment_linear_downsampling_scipy(
-    data_sample: TFT,
-    zoom_range: TFT = (0.5, 1),
-    per_channel: TFT = True,
-    p_per_channel: TFT = 1.0,
-    channels: TFT = nan,
-    order_downsample: TFT = 1,
-    order_upsample: TFT = 0,
-    ignore_axes: TFT = nan,
+    data_sample: tf.Tensor,
+    zoom_range: tf.Tensor = (0.5, 1),
+    per_channel: tf.Tensor = True,
+    p_per_channel: tf.Tensor = 1.0,
+    channels: tf.Tensor = nan,
+    order_downsample: tf.Tensor = 1,
+    order_upsample: tf.Tensor = 0,
+    ignore_axes: tf.Tensor = nan,
 ):
     """
     Downsamples each sample (linearly) by a random factor and upsamples to original resolution again (nearest neighbor)
@@ -190,7 +195,9 @@ def augment_linear_downsampling_scipy(
 
 
 @tf.function
-def volume_resize(input_data: TFT, target_shape: TFT, method: TFT):
+def volume_resize(
+    input_data: tf.Tensor, target_shape: tf.Tensor, method: tf.Tensor
+):
     target_shape = tf.cast(target_shape, tf.int32)
     image = tf.transpose(input_data, perm=[1, 2, 0])
     image = tf.image.resize(image, target_shape[1:], method=method)

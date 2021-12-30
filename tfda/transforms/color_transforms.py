@@ -37,7 +37,7 @@ Color Transforms
 """
 import tensorflow as tf
 
-# Others
+# Local
 # tf.debugging.set_log_device_placement(True)
 from tfda.augmentations.color_augmentations import (
     augment_brightness_additive,
@@ -45,8 +45,9 @@ from tfda.augmentations.color_augmentations import (
     augment_contrast,
     augment_gamma,
 )
-from tfda.base import DTFT, TFT, TFDABase
-from tfda.utils import TFbF, to_tf_bool, to_tf_float
+from tfda.base import DTFT, TFDABase
+from tfda.defs import TFbF
+from tfda.utils import to_tf_bool, to_tf_float
 
 
 class ColorTrans(TFDABase):
@@ -169,18 +170,17 @@ class GammaTransform(TFDABase):
 
     def __init__(
         self,
-        gamma_range: TFT = (0.5, 2),
-        invert_image: TFT = TFbF,
-        per_channel: TFT = TFbF,
-        retain_stats: TFT = TFbF,
-        **kws: TFT,
+        gamma_range: tf.Tensor = (0.5, 2),
+        invert_image: tf.Tensor = TFbF,
+        per_channel: tf.Tensor = TFbF,
+        retain_stats: tf.Tensor = TFbF,
+        **kws: tf.Tensor,
     ):
         super().__init__(**kws)
-        self.retain_stats = retain_stats
-        self.gamma_range = gamma_range
-        self.invert_image = invert_image
-        self.per_channel = per_channel
-
+        self.retain_stats = tf.convert_to_tensor(retain_stats)
+        self.gamma_range = tf.convert_to_tensor(gamma_range)
+        self.invert_image = tf.convert_to_tensor(invert_image)
+        self.per_channel = tf.convert_to_tensor(per_channel)
 
     @tf.function(experimental_follow_type_hints=True)
     def call(self, data_dict: DTFT) -> DTFT:
@@ -217,7 +217,7 @@ if __name__ == "__main__":
 
     data_sample = next(iter(dataset))
 
-    # Others
+    # Local
     from tfda.base import Compose
 
     ts = Compose(

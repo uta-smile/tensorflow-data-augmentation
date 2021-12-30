@@ -37,16 +37,11 @@ Tensorflow data augmentation base
 # Standard Library
 import abc
 from itertools import chain
+from tfda.utils import to_tf_float
 
 import tensorflow as tf
 
-# Types
-from typing import Dict, Iterable, Sequence, Tuple, TypeVar, Union
-
-TFT = tf.Tensor
-DTFT = Dict[str, tf.Tensor]
-T = TypeVar("T")
-Seqs = Union[Sequence[T], Iterable[T]]
+from tfda.defs import DTFT, Seqs
 
 # tf.debugging.set_log_device_placement(True)
 
@@ -56,27 +51,27 @@ class TFDABase(tf.keras.layers.Layer):
 
     def __init__(
         self,
-        data_key: TFT = "data",
-        label_key: TFT = "seg",
-        p_per_sample: TFT = 1.0,
-        p_per_channel: TFT = 1.0,
-        per_channel: TFT = False,
-        contrast_range: TFT = (0.75, 1.25),
-        multiplier_range: TFT = (0.5, 2),
-        preserve_range: TFT = True,
-        noise_variance: Tuple[float, float] = (0, 0.1),
-        different_sigma_per_channel: TFT = True,
+        data_key: str = "data",
+        label_key: str = "seg",
+        p_per_sample: tf.Tensor = 1.0,
+        p_per_channel: tf.Tensor = 1.0,
+        per_channel: tf.Tensor = False,
+        contrast_range: tf.Tensor = (0.75, 1.25),
+        multiplier_range: tf.Tensor = (0.5, 2),
+        preserve_range: tf.Tensor = True,
+        noise_variance: tf.Tensor = (0., 0.1),
+        different_sigma_per_channel: tf.Tensor = True,
         **kws,
     ) -> None:
         super().__init__(**kws)
-        self.p_per_sample = p_per_sample
-        self.p_per_channel = p_per_channel
-        self.per_channel = per_channel
-        self.contrast_range = contrast_range
-        self.multiplier_range = multiplier_range
-        self.preserve_range = preserve_range
-        self.noise_variance = noise_variance
-        self.different_sigma_per_channel = different_sigma_per_channel
+        self.p_per_sample = tf.convert_to_tensor(p_per_sample)
+        self.p_per_channel = tf.convert_to_tensor(p_per_channel)
+        self.per_channel = tf.convert_to_tensor(per_channel)
+        self.contrast_range = tf.convert_to_tensor(contrast_range)
+        self.multiplier_range = tf.convert_to_tensor(multiplier_range)
+        self.preserve_range = tf.convert_to_tensor(preserve_range)
+        self.noise_variance = tf.convert_to_tensor(noise_variance)
+        self.different_sigma_per_channel = tf.convert_to_tensor(different_sigma_per_channel)
 
         self.data_key = data_key
         self.label_key = label_key
@@ -91,11 +86,11 @@ class RndTransform(TFDABase):
         self.prob = prob
 
     @tf.function
-    def call(self, **data_dict: TFT) -> DTFT:
+    def call(self, **data_dict: tf.Tensor) -> DTFT:
         """Call the Rnd transform."""
         return (
             tf.random.uniform() < self.prob
-            and self.transform(**data_dict)
+            and self.transform(data_dict)
             or data_dict
         )
 
@@ -104,7 +99,7 @@ class IDTransform(TFDABase):
     """Identity transform."""
 
     @tf.function
-    def call(self, **data_dict: TFT) -> DTFT:
+    def call(self, **data_dict: tf.Tensor) -> DTFT:
         """Call the transform."""
         return data_dict
 
@@ -140,12 +135,12 @@ if __name__ == "__main__":
         """
 
         @tf.function
-        def add1(self, x: TFT) -> TFT:
+        def add1(self, x: tf.Tensor) -> tf.Tensor:
             """Add 1."""
             return x + 1
 
         @tf.function
-        def call(self, **data_dict: TFT) -> DTFT:
+        def call(self, **data_dict: tf.Tensor) -> DTFT:
             """Call the add 1 transform."""
 
             for key, data in data_dict.items():

@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-# Others
+# Local
 from tfda.base import DTFT, TFDABase
 
 
@@ -11,7 +11,12 @@ class RemoveLabelTransform(TFDABase):
     """
 
     def __init__(
-            self, remove_label, replace_with=0., input_key="seg", output_key="seg", **kws
+        self,
+        remove_label,
+        replace_with=0.0,
+        input_key="seg",
+        output_key="seg",
+        **kws,
     ):
         super().__init__(**kws)
         self.output_key = output_key
@@ -24,7 +29,9 @@ class RemoveLabelTransform(TFDABase):
         data_dict = data_dict.copy()
         seg = data_dict[self.input_key]
         condition = tf.equal(seg, self.remove_label)
-        case_true = tf.zeros(tf.shape(data_dict["seg"]))  # self.replace_with = 0
+        case_true = tf.zeros(
+            tf.shape(data_dict["seg"])
+        )  # self.replace_with = 0
         case_false = seg
         seg = tf.where(condition, case_true, case_false)
         data_dict[self.output_key] = seg
@@ -54,7 +61,9 @@ class RenameTransform(TFDABase):
 if __name__ == "__main__":
     images = tf.random.uniform((1, 2, 2, 2, 2))
     labels = (
-        tf.random.uniform((1, 1, 2, 2, 2), minval=0, maxval=2, dtype=tf.float32)
+        tf.random.uniform(
+            (1, 1, 2, 2, 2), minval=0, maxval=2, dtype=tf.float32
+        )
         - 1
     )
     data_dict = {"data": images, "seg": labels}

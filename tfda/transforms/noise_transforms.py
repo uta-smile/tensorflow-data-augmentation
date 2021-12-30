@@ -41,14 +41,14 @@ import tensorflow as tf
 # Types
 from typing import Optional, Tuple
 
-# Others
+# Local
 # tf.debugging.set_log_device_placement(True)
 from tfda.augmentations.noise_augmentations import (
     augment_gaussian_blur,
-    augment_gaussian_noise
+    augment_gaussian_noise,
 )
-from tfda.base import DTFT, TFT, TFDABase
-from tfda.utils import TFbF, TFbT
+from tfda.base import DTFT, TFDABase
+from tfda.defs import TFbF, TFbT
 
 
 class GaussianNoiseTransform(TFDABase):
@@ -89,15 +89,14 @@ class GaussianNoiseTransform(TFDABase):
 class GaussianBlurTransform(TFDABase):
     def __init__(
         self,
-        blur_sigma: TFT = (1.0, 5.0),
-        different_sigma_per_channel: TFT = TFbT,
-        different_sigma_per_axis: TFT = TFbF,
-        **kws: TFT
+        blur_sigma: tf.Tensor = (1.0, 5.0),
+        different_sigma_per_channel: tf.Tensor = TFbT,
+        different_sigma_per_axis: tf.Tensor = TFbF,
+        **kws: tf.Tensor
     ) -> None:
         super().__init__(**kws)
         self.different_sigma_per_channel = different_sigma_per_channel
         self.blur_sigma = blur_sigma
-
 
     @tf.function(experimental_follow_type_hints=True)
     def call(self, data_dict: DTFT) -> DTFT:
@@ -124,7 +123,8 @@ if __name__ == "__main__":
         dataset = next(
             iter(
                 tf.data.Dataset.range(
-                    8 * 1 * 40 * 56 * 40, output_type=tf.float32,
+                    8 * 1 * 40 * 56 * 40,
+                    output_type=tf.float32,
                 )
                 .batch(40)
                 .batch(56)
@@ -135,7 +135,7 @@ if __name__ == "__main__":
             )
         )
         data_dict = dict(data=dataset)
-        t = GaussianNoiseTransform(p_per_sample=1.)
+        t = GaussianNoiseTransform(p_per_sample=1.0)
 
         tf.print(t(data_dict)["data"].shape)
 

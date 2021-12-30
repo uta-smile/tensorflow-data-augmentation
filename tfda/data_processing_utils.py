@@ -19,8 +19,7 @@ import tensorflow_addons as tfa
 
 # Local
 from tfda.augmentations.utils import rotate_coords_2d, rotate_coords_3d
-from tfda.base import DTFT
-from tfda.defs import TFbF, TFbT, nan, pi
+from tfda.defs import DTFT, TFbF, TFbT, nan, pi, TFDADefault3DParams
 from tfda.utils import isnan
 
 default_3D_augmentation_params = {

@@ -36,48 +36,50 @@ license  : GPL-3.0+
 Spatial Transforms
 """
 
-from typing import Tuple
 import tensorflow as tf
 
-# Others
+# Types
+from typing import Tuple
+
+# Local
 # tf.debugging.set_log_device_placement(True)
 from tfda.augmentations.spatial_transformations import (
     augment_mirroring,
     augment_spatial,
 )
-from tfda.base import DTFT, TFT, TFDABase
-from tfda.utils import TFbF, TFbT, TFf0, TFf1, TFi1, pi, nan
+from tfda.base import DTFT, TFDABase
+from tfda.defs import TFbF, TFbT, nan, pi
 
 
 class SpatialTransform(TFDABase):
     def __init__(
         self,
-        patch_size: TFT,
-        patch_center_dist_from_border: TFT = 30 * TFi1,
-        do_elastic_deform: TFT = TFbT,
-        alpha: TFT = (0.0, 1000.0),
-        sigma: TFT = (10.0, 13.0),
-        do_rotation: TFT = TFbT,
-        angle_x: TFT = (0, 2 * pi),
-        angle_y: TFT = (0, 2 * pi),
-        angle_z: TFT = (0, 2 * pi),
-        do_scale: TFT = TFbT,
-        scale: TFT = (0.75, 1.25),
-        border_mode_data: TFT = "nearest",
-        border_cval_data: TFT = TFf0,
-        order_data: TFT = 3 * TFf1,
-        border_mode_seg: TFT = "constant",
-        border_cval_seg: TFT = TFf0,
-        order_seg: TFT = TFf0,
-        random_crop: TFT = TFbT,
-        data_key: TFT = "data",
-        label_key: TFT = "seg",
-        p_el_per_sample: TFT = TFf1,
-        p_scale_per_sample: TFT = TFf1,
-        p_rot_per_sample: TFT = TFf1,
-        independent_scale_for_each_axis: TFT = TFbF,
-        p_rot_per_axis: TFT = TFf1,
-        p_independent_scale_per_axis: TFT = TFf1,
+        patch_size: tf.Tensor,
+        patch_center_dist_from_border: tf.Tensor = 30,
+        do_elastic_deform: tf.Tensor = TFbT,
+        alpha: tf.Tensor = (0.0, 1000.0),
+        sigma: tf.Tensor = (10.0, 13.0),
+        do_rotation: tf.Tensor = TFbT,
+        angle_x: tf.Tensor = (0, 2 * pi),
+        angle_y: tf.Tensor = (0, 2 * pi),
+        angle_z: tf.Tensor = (0, 2 * pi),
+        do_scale: tf.Tensor = TFbT,
+        scale: tf.Tensor = (0.75, 1.25),
+        border_mode_data: tf.Tensor = "nearest",
+        border_cval_data: tf.Tensor = 0.0,
+        order_data: tf.Tensor = 3,
+        border_mode_seg: tf.Tensor = "constant",
+        border_cval_seg: tf.Tensor = 0.0,
+        order_seg: tf.Tensor = 0.0,
+        random_crop: tf.Tensor = TFbT,
+        data_key: tf.Tensor = "data",
+        label_key: tf.Tensor = "seg",
+        p_el_per_sample: tf.Tensor = 1.0,
+        p_scale_per_sample: tf.Tensor = 1.0,
+        p_rot_per_sample: tf.Tensor = 1.0,
+        independent_scale_for_each_axis: tf.Tensor = TFbF,
+        p_rot_per_axis: tf.Tensor = 1.0,
+        p_independent_scale_per_axis: tf.Tensor = 1.0,
         **kws,
     ) -> None:
         super().__init__(**kws)
@@ -170,7 +172,7 @@ class MirrorTransform(TFDABase):
 
     """
 
-    def __init__(self, axes: TFT = (0, 1, 2), **kws):
+    def __init__(self, axes: tf.Tensor = (0, 1, 2), **kws):
         super().__init__(**kws)
         axes = tf.cast(axes, tf.int64)
         self.axes = axes

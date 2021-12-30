@@ -38,28 +38,31 @@ Augmentation Utils
 
 import tensorflow as tf
 
-# Others
+# Local
+from tfda.defs import TFbF, TFbT, nan
+from tfda.utils import isnan, to_tf_bool, to_tf_float, to_tf_int
+
 # tf.debugging.set_log_device_placement(True)
-from tfda.base import TFT
-from tfda.utils import TFbF, TFbT, TFf0, to_tf_bool, to_tf_float, to_tf_int, nan
 
 
 @tf.function(experimental_follow_type_hints=True)
-def to_one_hot(seg: TFT, all_seg_labels: TFT = nan):
-    if tf.math.reduce_any(tf.math.is_nan(all_seg_labels)):
+def to_one_hot(seg: tf.Tensor, all_seg_labels: tf.Tensor = nan):
+    if isnan(all_seg_labels):
         all_seg_labels, _ = tf.unique(tf.reshape(seg, (-1,)))
 
     nseg = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
     for s in tf.range(tf.shape(seg)[0]):
         result = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
         for i in tf.range(tf.size(all_seg_labels)):
-            result = result.write(i, tf.where(seg[s] == all_seg_labels[i], 1., 0.))
+            result = result.write(
+                i, tf.where(seg[s] == all_seg_labels[i], 1.0, 0.0)
+            )
         nseg = nseg.write(s, result.stack())
     return nseg.stack()
 
 
 @tf.function(experimental_follow_type_hints=True)
-def get_range_val(value: TFT, rnd_type: TFT = "uniform"):
+def get_range_val(value: tf.Tensor, rnd_type: tf.Tensor = "uniform"):
     # TODO: different rank values
 
     # return tf.case(
@@ -85,7 +88,8 @@ def get_range_val(value: TFT, rnd_type: TFT = "uniform"):
     return tf.case(
         [
             (
-                tf.equal(tf.shape(value)[0], 2) and tf.equal(rnd_type, "uniform"),
+                tf.equal(tf.shape(value)[0], 2)
+                and tf.equal(rnd_type, "uniform"),
                 lambda: tf.random.uniform(
                     (), minval=value[0], maxval=value[1], dtype=tf.float32
                 ),
@@ -101,7 +105,7 @@ def get_range_val(value: TFT, rnd_type: TFT = "uniform"):
 
 
 @tf.function(experimental_follow_type_hints=True)
-def create_zero_centered_coordinate_mesh(shape: TFT) -> TFT:
+def create_zero_centered_coordinate_mesh(shape: tf.Tensor) -> tf.Tensor:
     tmp = tf.map_fn(
         lambda x: tf.range(x, dtype=tf.float32),
         shape,
@@ -125,7 +129,9 @@ def create_zero_centered_coordinate_mesh(shape: TFT) -> TFT:
 
 
 @tf.function(experimental_follow_type_hints=True)
-def elastic_deform_coordinates(coordinates: TFT, alpha: TFT, sigma: TFT):
+def elastic_deform_coordinates(
+    coordinates: tf.Tensor, alpha: tf.Tensor, sigma: tf.Tensor
+):
     coordinates = tf.cast(coordinates, tf.float32)
     alpha = tf.cast(alpha, tf.float32)
     sigma = tf.cast(sigma, tf.float32)
@@ -145,7 +151,9 @@ def elastic_deform_coordinates(coordinates: TFT, alpha: TFT, sigma: TFT):
 
 # rotation relate
 @tf.function(experimental_follow_type_hints=True)
-def create_matrix_rotation_x_3d(angle: TFT, matrix: TFT) -> TFT:
+def create_matrix_rotation_x_3d(
+    angle: tf.Tensor, matrix: tf.Tensor
+) -> tf.Tensor:
     rotation_x = tf.cast(
         [
             [1, 0, 0],
@@ -158,7 +166,9 @@ def create_matrix_rotation_x_3d(angle: TFT, matrix: TFT) -> TFT:
 
 
 @tf.function(experimental_follow_type_hints=True)
-def create_matrix_rotation_y_3d(angle: TFT, matrix: TFT) -> TFT:
+def create_matrix_rotation_y_3d(
+    angle: tf.Tensor, matrix: tf.Tensor
+) -> tf.Tensor:
     rotation_x = tf.cast(
         [
             [tf.cos(angle), 0, tf.sin(angle)],
@@ -171,7 +181,9 @@ def create_matrix_rotation_y_3d(angle: TFT, matrix: TFT) -> TFT:
 
 
 @tf.function(experimental_follow_type_hints=True)
-def create_matrix_rotation_z_3d(angle: TFT, matrix: TFT) -> TFT:
+def create_matrix_rotation_z_3d(
+    angle: tf.Tensor, matrix: tf.Tensor
+) -> tf.Tensor:
     rotation_x = tf.cast(
         [
             [tf.cos(angle), -tf.sin(angle), 0],
@@ -184,7 +196,9 @@ def create_matrix_rotation_z_3d(angle: TFT, matrix: TFT) -> TFT:
 
 
 @tf.function(experimental_follow_type_hints=True)
-def create_matrix_rotation_2d(angle: TFT, matrix: TFT = None) -> TFT:
+def create_matrix_rotation_2d(
+    angle: tf.Tensor, matrix: tf.Tensor = None
+) -> tf.Tensor:
     rotation = tf.cast(
         [[tf.cos(angle), -tf.sin(angle)], [tf.sin(angle), tf.cos(angle)]],
         tf.float32,
@@ -198,8 +212,11 @@ def create_matrix_rotation_2d(angle: TFT, matrix: TFT = None) -> TFT:
 
 @tf.function(experimental_follow_type_hints=True)
 def rotate_coords_3d(
-    coords: TFT, angle_x: TFT, angle_y: TFT, angle_z: TFT
-) -> TFT:
+    coords: tf.Tensor,
+    angle_x: tf.Tensor,
+    angle_y: tf.Tensor,
+    angle_z: tf.Tensor,
+) -> tf.Tensor:
     rot_matrix = tf.eye(tf.shape(coords)[0])
 
     rot_matrix = create_matrix_rotation_x_3d(angle_x, rot_matrix)
@@ -216,7 +233,7 @@ def rotate_coords_3d(
 
 
 @tf.function(experimental_follow_type_hints=True)
-def rotate_coords_2d(coords: TFT, angle: TFT) -> TFT:
+def rotate_coords_2d(coords: tf.Tensor, angle: tf.Tensor) -> tf.Tensor:
     rot_matrix = create_matrix_rotation_2d(angle)
     print(tf.shape(coords))
     return tf.reshape(
@@ -229,20 +246,26 @@ def rotate_coords_2d(coords: TFT, angle: TFT) -> TFT:
 
 
 @tf.function(experimental_follow_type_hints=True)
-def scale_coords(coords: TFT, scale: TFT) -> TFT:
+def scale_coords(coords: tf.Tensor, scale: tf.Tensor) -> tf.Tensor:
     return coords * tf.reshape(scale, (-1, 1))
 
 
 # Gaussian filter related
 @tf.function(experimental_follow_type_hints=True)
-def gaussian_kernel1d(sigma: TFT, radius: TFT) -> TFT:
+def gaussian_kernel1d(sigma: tf.Tensor, radius: tf.Tensor) -> tf.Tensor:
     x = tf.range(-radius, radius + 1, dtype=tf.float32)
     phi = tf.exp(-0.5 / (sigma * sigma) * x ** 2)
     return phi / tf.reduce_sum(phi)
 
 
 @tf.function(experimental_follow_type_hints=True)
-def gf_pad(x: TFT, mode: TFT, cval: TFT, ws: TFT, ins: TFT):
+def gf_pad(
+    x: tf.Tensor,
+    mode: tf.Tensor,
+    cval: tf.Tensor,
+    ws: tf.Tensor,
+    ins: tf.Tensor,
+):
     """Pad.
 
     for the VALID, width = (pin_w - k_w + 1) / stride(1) = in_w
@@ -265,9 +288,13 @@ def gf_pad(x: TFT, mode: TFT, cval: TFT, ws: TFT, ins: TFT):
     return tf.concat([lpv, x, lrv], axis=0)
 
 
-
 @tf.function(experimental_follow_type_hints=True)
-def gaussian_filter1d(xs: TFT, sigma: TFT, mode: TFT, cval: TFT = TFf0):
+def gaussian_filter1d(
+    xs: tf.Tensor,
+    sigma: tf.Tensor,
+    mode: tf.Tensor,
+    cval: tf.Tensor = 0.0,
+):
     sigma = tf.cast(sigma, tf.float32)
     lw = tf.cast(sigma * sigma + 0.5, tf.int64)
     weights = gaussian_kernel1d(sigma, lw)[::-1]
@@ -277,7 +304,13 @@ def gaussian_filter1d(xs: TFT, sigma: TFT, mode: TFT, cval: TFT = TFf0):
 
     # padding
     xs = tf.map_fn(
-        lambda x: gf_pad(x, mode, cval, ws, ins,),
+        lambda x: gf_pad(
+            x,
+            mode,
+            cval,
+            ws,
+            ins,
+        ),
         xs,
     )
 
@@ -289,8 +322,11 @@ def gaussian_filter1d(xs: TFT, sigma: TFT, mode: TFT, cval: TFT = TFf0):
 
 @tf.function(experimental_follow_type_hints=True)
 def gaussian_filter(
-    xxs: TFT, sigma: TFT, mode: TFT = "reflect", cval: TFT = TFf0
-) -> TFT:
+    xxs: tf.Tensor,
+    sigma: tf.Tensor,
+    mode: tf.Tensor = "reflect",
+    cval: tf.Tensor = 0.0,
+) -> tf.Tensor:
     """Gaussian filter trans from scipy gaussian filter.
 
     NOTE: only for 3 dim Tensor.
@@ -331,10 +367,10 @@ if __name__ == "__main__":
     patch_size = tf.constant([20, 376, 376])
 
     with tf.device("/CPU:0"):
-        tf.print(get_range_val([0, 1.]))
+        tf.print(get_range_val([0, 1.0]))
         coords = create_zero_centered_coordinate_mesh(patch_size)
 
-        tf.print(elastic_deform_coordinates(coords, 50., 12.).shape)
+        tf.print(elastic_deform_coordinates(coords, 50.0, 12.0).shape)
         # assert elastic_deform_coordinates(coords, 50., 12.).shape == [
         #     3,
         #     40,
@@ -353,4 +389,4 @@ if __name__ == "__main__":
         tf.print("----------")
         tf.print(rotate_coords_3d(coords, 1.0, 1.0, 1.0).shape)
 
-        tf.print(to_one_hot(tf.zeros([9, 40, 56, 40]), [1., 2, 3]).shape)
+        tf.print(to_one_hot(tf.zeros([9, 40, 56, 40]), [1.0, 2, 3]).shape)

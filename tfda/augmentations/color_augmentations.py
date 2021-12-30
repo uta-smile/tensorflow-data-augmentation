@@ -35,8 +35,6 @@ license  : GPL-3.0+
 
 Color Augmentation
 """
-from tfda.utils import TFbF, TFbT, TFf1, to_tf_bool
-from tfda.base import TFT
 import tensorflow as tf
 
 
@@ -73,9 +71,9 @@ def augment_factor_help(
 def augment_contrast(
     data_sample: tf.Tensor,
     contrast_range: tf.Tensor = (0.75, 1.25),
-    preserve_range: tf.Tensor = TFbT,
-    per_channel: tf.Tensor = TFbT,
-    p_per_channel: tf.Tensor = TFf1,
+    preserve_range: tf.Tensor = True,
+    per_channel: tf.Tensor = True,
+    p_per_channel: tf.Tensor = 1.0,
 ) -> tf.Tensor:
     """Augment contrast."""
     # TODO: callable contrast_range
@@ -114,11 +112,11 @@ def augment_brightness_additive(
     data_sample: tf.Tensor,
     mu: tf.Tensor,
     sigma: tf.Tensor,
-    per_channel: tf.Tensor = TFbT,
-    p_per_channel: tf.Tensor = TFf1,
+    per_channel: tf.Tensor = True,
+    p_per_channel: tf.Tensor = 1.0,
 ) -> tf.Tensor:
     """Augment brightness additive."""
-    if to_tf_bool(not per_channel):
+    if not per_channel:
         rnd_nb = tf.random.uniform((), mu, sigma)
         data_sample = tf.map_fn(
             lambda x: tf.cond(
@@ -144,14 +142,14 @@ def augment_brightness_additive(
 def augment_brightness_multiplicative(
     data_sample: tf.Tensor,
     multiplier_range: tf.Tensor = (0.5, 2),
-    per_channel: tf.Tensor = TFbT,
+    per_channel: tf.Tensor = True,
 ) -> tf.Tensor:
     """Augment brightness multiplicative."""
     multiplier = tf.random.uniform(
         (), multiplier_range[0], multiplier_range[1]
     )
 
-    if to_tf_bool(not per_channel):
+    if not per_channel:
         data_sample *= multiplier
     else:
         data_sample = tf.map_fn(
@@ -164,11 +162,11 @@ def augment_brightness_multiplicative(
 
 @tf.function(experimental_follow_type_hints=True)
 def augment_gamma_help(
-    data_sample: TFT,
-    gamma_range: TFT,
-    epsilon: TFT,
-    retain_stats: TFT,
-) -> TFT:
+    data_sample: tf.Tensor,
+    gamma_range: tf.Tensor,
+    epsilon: tf.Tensor,
+    retain_stats: tf.Tensor,
+) -> tf.Tensor:
     if tf.random.uniform(()) < 0.5 and gamma_range[0] < 1:
         gamma = tf.random.uniform((), minval=gamma_range[0], maxval=1)
     else:
@@ -198,23 +196,36 @@ def augment_gamma_help(
     return data_sample
 
 
-@tf.function(experimental_follow_type_hints=True)
+@tf.function(
+    input_signature=[
+        tf.TensorSpec(shape=None, dtype=tf.float32),
+        tf.TensorSpec(shape=(2,), dtype=tf.float32),
+        tf.TensorSpec(shape=(), dtype=tf.bool),
+        tf.TensorSpec(shape=(), dtype=tf.float32),
+        tf.TensorSpec(shape=(), dtype=tf.bool),
+        tf.TensorSpec(shape=(), dtype=tf.bool),
+    ]
+)
 def augment_gamma(
-    data_sample: TFT,
-    gamma_range: TFT = (0.5, 2),
-    invert_image: TFT = TFbF,
-    epsilon: TFT = 1e-7,
-    per_channel: TFT = TFbT,
-    retain_stats: TFT = TFbT,
+    data_sample: tf.Tensor,
+    gamma_range: tf.Tensor = (0.5, 2),
+    invert_image: tf.Tensor = False,
+    epsilon: tf.Tensor = 1e-7,
+    per_channel: tf.Tensor = True,
+    retain_stats: tf.Tensor = True,
 ):
     if invert_image:
         data_sample = -data_sample
     if not per_channel:
-        data_sample = augment_gamma_help(data_sample, gamma_range, epsilon, retain_stats)
+        data_sample = augment_gamma_help(
+            data_sample, gamma_range, epsilon, retain_stats
+        )
     else:
         data_sample = tf.map_fn(
-            lambda ds: augment_gamma_help(ds, gamma_range, epsilon, retain_stats),
-            data_sample
+            lambda ds: augment_gamma_help(
+                ds, gamma_range, epsilon, retain_stats
+            ),
+            data_sample,
         )
     if invert_image:
         data_sample = -data_sample

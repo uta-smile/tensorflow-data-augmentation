@@ -1,11 +1,10 @@
 import tensorflow as tf
 
-# Others
-from tfda.base import DTFT, TFDABase, TFT
+# Local
+from tfda.base import DTFT, TFDABase
 
 
 class Convert3DTo2DTransform(TFDABase):
-
     @tf.function(experimental_follow_type_hints=True)
     def call(self, data_dict: DTFT):
         return convert_3d_to_2d_generator(data_dict)
@@ -37,7 +36,6 @@ def convert_3d_to_2d_generator(data_dict: DTFT) -> DTFT:
 
 
 class Convert2DTo3DTransform(TFDABase):
-
     @tf.function(experimental_follow_type_hints=True)
     def call(self, data_dict: DTFT) -> DTFT:
         return convert_2d_to_3d_generator(data_dict)
@@ -129,11 +127,11 @@ class ConvertSegmentationToRegionsTransform(TFDABase):
 class MaskTransform(TFDABase):
     def __init__(
         self,
-        dct_for_where_it_was_used: TFT,
-        mask_idx_in_seg: TFT = 1,
-        set_outside_to: TFT = 0,
-        data_key: TFT = "data",
-        seg_key: TFT = "seg",
+        dct_for_where_it_was_used: tf.Tensor,
+        mask_idx_in_seg: tf.Tensor = 1,
+        set_outside_to: tf.Tensor = 0,
+        data_key: tf.Tensor = "data",
+        seg_key: tf.Tensor = "seg",
         **kws,
     ):
         """
@@ -154,7 +152,7 @@ class MaskTransform(TFDABase):
         self.mask_idx_in_seg = mask_idx_in_seg
 
     @tf.function(experimental_follow_type_hints=True)
-    def call(self, data_dict: DTFT) -> DTFT :
+    def call(self, data_dict: DTFT) -> DTFT:
         """Call the transform."""
         data_dict = data_dict.copy()
         seg = data_dict.get(self.seg_key)

@@ -36,6 +36,12 @@ license  : GPL-3.0+
 spatial transformations
 """
 
+import tensorflow as tf
+
+# Types
+from typing import Optional, Tuple
+
+# Local
 # tf.debugging.set_log_device_placement(True)
 from tfda.augmentations.utils import (
     create_zero_centered_coordinate_mesh,
@@ -44,68 +50,57 @@ from tfda.augmentations.utils import (
     rotate_coords_3d,
     scale_coords,
 )
-from tfda.base import TFT
 from tfda.data_processing_utils import (
     center_crop_fn,
     interpolate_img,
     random_crop_fn,
     update_tf_channel,
 )
-from tfda.utils import (
-    TFbF,
-    TFbT,
-    TFf0,
-    TFf1,
-    TFi1,
-    pi, nan,
-    to_tf_bool,
-    to_tf_float,
-)
-
-import tensorflow as tf
-
-# Types
-from typing import Optional, Tuple
+from tfda.defs import TFbF, TFbT, nan, pi
 
 
-def augment_spatial_helper(sample_id: TFT, patch_size: TFT) -> TFT:
+def augment_spatial_helper(
+    sample_id: tf.Tensor, patch_size: tf.Tensor
+) -> tf.Tensor:
     pass
 
 
 @tf.function(experimental_follow_type_hints=True)
 def augment_spatial(
-    data: TFT,
-    seg: TFT,
-    patch_size: TFT,
-    patch_center_dist_from_border: TFT = 30 * TFi1,
-    do_elastic_deform: TFT = TFbT,
-    alpha: TFT = (0.0, 1000.0),
-    sigma: TFT = (10.0, 13.0),
-    do_rotation: TFT = TFbT,
-    angle_x: TFT = (0, 2 * pi),
-    angle_y: TFT = (0, 2 * pi),
-    angle_z: TFT = (0, 2 * pi),
-    do_scale: TFT = TFbT,
-    scale: TFT = (0.75, 1.25),
-    border_mode_data: TFT = "nearest",
-    border_cval_data: TFT = TFf0,
-    order_data: TFT = 3 * TFf1,
-    border_mode_seg: TFT = "constant",
-    border_cval_seg: TFT = TFf0,
-    order_seg: TFT = TFf0,
-    random_crop: TFT = TFbT,
-    p_el_per_sample: TFT = TFf1,
-    p_scale_per_sample: TFT = TFf1,
-    p_rot_per_sample: TFT = TFf1,
-    independent_scale_for_each_axis: TFT = TFbF,
-    p_rot_per_axis: TFT = TFf1,
-    p_independent_scale_per_axis: TFT = TFf1,
-) -> TFT:
+    data: tf.Tensor,
+    seg: tf.Tensor,
+    patch_size: tf.Tensor,
+    patch_center_dist_from_border: tf.Tensor = 30,
+    do_elastic_deform: tf.Tensor = TFbT,
+    alpha: tf.Tensor = (0.0, 1000.0),
+    sigma: tf.Tensor = (10.0, 13.0),
+    do_rotation: tf.Tensor = TFbT,
+    angle_x: tf.Tensor = (0, 2 * pi),
+    angle_y: tf.Tensor = (0, 2 * pi),
+    angle_z: tf.Tensor = (0, 2 * pi),
+    do_scale: tf.Tensor = TFbT,
+    scale: tf.Tensor = (0.75, 1.25),
+    border_mode_data: tf.Tensor = "nearest",
+    border_cval_data: tf.Tensor = 0.0,
+    order_data: tf.Tensor = 3.0,
+    border_mode_seg: tf.Tensor = "constant",
+    border_cval_seg: tf.Tensor = 0.0,
+    order_seg: tf.Tensor = 0.0,
+    random_crop: tf.Tensor = TFbT,
+    p_el_per_sample: tf.Tensor = 1.0,
+    p_scale_per_sample: tf.Tensor = 1.0,
+    p_rot_per_sample: tf.Tensor = 1.0,
+    independent_scale_for_each_axis: tf.Tensor = TFbF,
+    p_rot_per_axis: tf.Tensor = 1.0,
+    p_independent_scale_per_axis: tf.Tensor = 1.0,
+) -> tf.Tensor:
     p_el_per_sample = tf.cast(p_el_per_sample, tf.float32)
     p_scale_per_sample = tf.cast(p_scale_per_sample, tf.float32)
     p_rot_per_axis = tf.cast(p_rot_per_axis, tf.float32)
     p_rot_per_sample = tf.cast(p_rot_per_sample, tf.float32)
-    p_independent_scale_per_axis = tf.cast(p_independent_scale_per_axis, tf.float32)
+    p_independent_scale_per_axis = tf.cast(
+        p_independent_scale_per_axis, tf.float32
+    )
     # start here
     dim = tf.shape(patch_size)[0]
 
@@ -136,18 +131,18 @@ def augment_spatial(
             if tf.less_equal(tf.random.uniform(()), p_rot_per_axis):
                 a_x = tf.random.uniform((), angle_x[0], angle_x[1])
             else:
-                a_x = TFf0
+                a_x = 0.0
 
-            if to_tf_bool(tf.equal(dim, 3)):
+            if tf.equal(dim, 3):
                 if tf.less_equal(tf.random.uniform(()), p_rot_per_axis):
                     a_y = tf.random.uniform((), angle_y[0], angle_y[1])
                 else:
-                    a_y = TFf0
+                    a_y = 0.0
 
                 if tf.less_equal(tf.random.uniform(()), p_rot_per_axis):
                     a_z = tf.random.uniform((), angle_z[0], angle_z[1])
                 else:
-                    a_z = TFf0
+                    a_z = 0.0
 
                 coords = rotate_coords_3d(coords, a_x, a_y, a_z)
             else:
@@ -357,7 +352,11 @@ def augment_spatial(
 
 
 @tf.function(experimental_follow_type_hints=True)
-def augment_mirroring(sample_data: TFT, sample_seg: TFT = nan, axes: TFT = (0, 1, 2)) -> TFT :
+def augment_mirroring(
+    sample_data: tf.Tensor,
+    sample_seg: tf.Tensor = nan,
+    axes: tf.Tensor = (0, 1, 2),
+) -> tf.Tensor:
     # if (tf.rank(sample_data) != 3) and (tf.rank(sample_data) != 4):
     #     tf.get_logger().warn(
     #         "Invalid dimension for sample_data and sample_seg. sample_data and sample_seg should be either "
@@ -387,7 +386,7 @@ if __name__ == "__main__":
     # mirrored_strategy = tf.distribute.MirroredStrategy()
 
     with tf.device("/CPU:0"):
-    # with mirrored_strategy.scope():
+        # with mirrored_strategy.scope():
         tf.print(augment_spatial(data, seg, patch_size, random_crop=TFbF))
         # augment_spatial(data, seg, patch_size)
         # augment_spatial(data, seg, patch_size)

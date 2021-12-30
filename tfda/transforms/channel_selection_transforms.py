@@ -35,18 +35,18 @@ license  : GPL-3.0+
 
 Channel Selection Transforms
 """
-# Standard Library
 import tensorflow as tf
 
-# Others
-from tfda.base import DTFT, TFT, TFDABase
-from tfda.utils import TFbT, to_tf_bool, to_tf_float, to_tf_int, nan
+# Local
+from tfda.base import DTFT, TFDABase
+from tfda.defs import TFbT, nan
+from tfda.utils import to_tf_int
 
 
 class DataChannelSelectionTransform(TFDABase):
     """Selects color channels from the batch and discards the others."""
 
-    def __init__(self, channels: TFT, **kws: TFT) -> None:
+    def __init__(self, channels: tf.Tensor, **kws: tf.Tensor) -> None:
         super().__init__(**kws)
         self.channels = channels
 
@@ -73,7 +73,10 @@ class SegChannelSelectionTransform(TFDABase):
     """
 
     def __init__(
-        self, channels: TFT, keep_discarded: TFT = TFbT, **kws: TFT
+        self,
+        channels: tf.Tensor,
+        keep_discarded: tf.Tensor = TFbT,
+        **kws: tf.Tensor
     ) -> None:
         super().__init__(**kws)
         self.channels = channels
