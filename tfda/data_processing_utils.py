@@ -263,14 +263,17 @@ class DataAugmentor:
         images, segs = tf.transpose(images, (0, 2, 3, 4, 1)), tf.transpose(segs, (0, 2, 3, 4, 1))
         return images, segs
 
+@tf.function
 def get_do_oversample(batch_idx, batch_size, oversample_foregroung_percent):
         # return not batch_idx < round(self.batch_size * (1 - self.oversample_foregroung_percent))
         return tf.greater_equal(tf.cast(batch_idx, tf.float32), tf.round(tf.cast(batch_size, tf.float32) * (tf.cast(1-oversample_foregroung_percent, tf.float32))))
 
+@tf.function
 def update_need_to_pad(need_to_pad, d, basic_generator_patch_size, case_all_data):
         need_to_pad_d = basic_generator_patch_size[d] - tf.shape(case_all_data, out_type=tf.int64)[d+1]
         return tf.cond(tf.less(need_to_pad[d]+tf.shape(case_all_data, out_type=tf.int64)[d+1], basic_generator_patch_size[d]), lambda: need_to_pad_d, lambda: need_to_pad[d])
 
+@tf.function
 def process_batch(ii, image_raw, original_image_size, original_label_size, label_raw,
                 class_locations_bytes, class_locations_shape, basic_generator_patch_size, patch_size, batch_size, oversample_foregroung_percent):
     i = tf.cast(ii, tf.int64)
