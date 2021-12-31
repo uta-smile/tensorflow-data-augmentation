@@ -112,6 +112,7 @@ def augment_spatial(
     #     patch_center_dist_from_border = dim * [patch_center_dist_from_border]
 
     # for sample_id in tf.range(data.shape[0]):
+    @tf.function
     def augment_per_sample(
         sample_id, patch_size, data, seg, data_result, seg_result
     ):
@@ -183,6 +184,7 @@ def augment_spatial(
             d = tf.constant(0, dtype=tf.int64)
             loop_cond = lambda d, coords: tf.less(d, dim)
 
+            @tf.function
             def body_fn(d, coords):
                 # random crop always false
                 # if random_crop:
@@ -219,6 +221,7 @@ def augment_spatial(
                 channel_id, tf.shape(data)[1]
             )
 
+            @tf.function
             def body_fn_data(channel_id, data_sample):
                 data_channel = interpolate_img(
                     data[sample_id, channel_id],
@@ -246,6 +249,7 @@ def augment_spatial(
                     channel_id, tf.shape(seg)[1]
                 )
 
+                @tf.function
                 def body_fn_seg(channel_id, seg_sample):
                     seg_channel = interpolate_img(
                         seg[sample_id, channel_id],

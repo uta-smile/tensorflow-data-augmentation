@@ -83,11 +83,12 @@ class TFDADefs(tf.experimental.ExtensionType):
 class TFDADefault3DParams(tf.experimental.ExtensionType):
     """TFDA default 3D augmentation params."""
 
+    patch_size_for_spatial_transform: tf.Tensor = (tf.reshape(nan, (-1, 1)),)
     selected_data_channels: tf.Tensor = (tf.reshape(nan, (-1, 1)),)
     selected_seg_channels: tf.Tensor = (tf.reshape(nan, (-1, 1)),)
     do_elastic: tf.Tensor = (True,)
-    elastic_deform_alpha: tf.Tensor = ((0.0, 900.0),)
-    elastic_deform_sigma: tf.Tensor = ((9.0, 13.0),)
+    elastic_deform_alpha: tf.Tensor = (0.0, 900.0)
+    elastic_deform_sigma: tf.Tensor = (9.0, 13.0)
     p_eldef: tf.Tensor = (0.2,)
     do_scaling: tf.Tensor = (True,)
     scale_range: tf.Tensor = ((0.85, 1.25),)

@@ -22,83 +22,6 @@ from tfda.augmentations.utils import rotate_coords_2d, rotate_coords_3d
 from tfda.defs import DTFT, TFbF, TFbT, nan, pi, TFDADefault3DParams
 from tfda.utils import isnan
 
-default_3D_augmentation_params = {
-    "selected_data_channels": nan,
-    "selected_seg_channels": nan,
-    "do_elastic": TFbT,
-    "elastic_deform_alpha": (0.0, 900.0),
-    "elastic_deform_sigma": (9.0, 13.0),
-    "p_eldef": 0.2,
-    "do_scaling": TFbT,
-    "scale_range": (0.85, 1.25),
-    "independent_scale_factor_for_each_axis": TFbF,
-    "p_independent_scale_per_axis": 1,
-    "p_scale": 0.2,
-    "do_rotation": TFbT,
-    "rotation_x": (-15.0 / 360 * 2.0 * pi, 15.0 / 360 * 2.0 * pi),
-    "rotation_y": (-15.0 / 360 * 2.0 * pi, 15.0 / 360 * 2.0 * pi),
-    "rotation_z": (-15.0 / 360 * 2.0 * pi, 15.0 / 360 * 2.0 * pi),
-    "rotation_p_per_axis": 1,
-    "p_rot": 0.2,
-    "random_crop": TFbF,
-    "random_crop_dist_to_border": nan,
-    "do_gamma": TFbT,
-    "gamma_retain_stats": TFbT,
-    "gamma_range": (0.7, 1.5),
-    "p_gamma": 0.3,
-    "do_mirror": TFbT,
-    "mirror_axes": (0, 1, 2),
-    "dummy_2D": TFbF,
-    "mask_was_used_for_normalization": nan,
-    "border_mode_data": "constant",
-    "all_segmentation_labels": nan,  # used for cascade
-    "move_last_seg_chanel_to_data": TFbF,  # used for cascade
-    "cascade_do_cascade_augmentations": TFbF,  # used for cascade
-    "cascade_random_binary_transform_p": 0.4,
-    "cascade_random_binary_transform_p_per_label": 1,
-    "cascade_random_binary_transform_size": (1, 8),
-    "cascade_remove_conn_comp_p": 0.2,
-    "cascade_remove_conn_comp_max_size_percent_threshold": 0.15,
-    "cascade_remove_conn_comp_fill_with_other_class_p": 0.0,
-    "do_additive_brightness": TFbF,
-    "additive_brightness_p_per_sample": 0.15,
-    "additive_brightness_p_per_channel": 0.5,
-    "additive_brightness_mu": 0.0,
-    "additive_brightness_sigma": 0.1,
-    "num_threads": 12
-    if "nnUNet_n_proc_DA" not in os.environ
-    else int(os.environ["nnUNet_n_proc_DA"]),
-    "num_cached_per_thread": 1,
-}
-
-
-default_2D_augmentation_params = deepcopy(default_3D_augmentation_params)
-
-default_2D_augmentation_params["elastic_deform_alpha"] = (0.0, 200.0)
-default_2D_augmentation_params["elastic_deform_sigma"] = (9.0, 13.0)
-default_2D_augmentation_params["rotation_x"] = (
-    -180.0 / 360 * 2.0 * pi,
-    180.0 / 360 * 2.0 * pi,
-)
-default_2D_augmentation_params["rotation_y"] = (
-    -0.0 / 360 * 2.0 * pi,
-    0.0 / 360 * 2.0 * pi,
-)
-default_2D_augmentation_params["rotation_z"] = (
-    -0.0 / 360 * 2.0 * pi,
-    0.0 / 360 * 2.0 * pi,
-)
-
-# sometimes you have 3d data and a 3d net but cannot augment them properly in 3d due to anisotropy (which is currently
-# not supported in batchgenerators). In that case you can 'cheat' and transfer your 3d data into 2d data and
-# transform them back after augmentation
-default_2D_augmentation_params["dummy_2D"] = TFbF
-default_2D_augmentation_params["mirror_axes"] = (
-    0,
-    1,
-)  # this can be (0, 1, 2) if dummy_2D=TFbT
-
-
 def get_batch_size(final_patch_size, rot_x, rot_y, rot_z, scale_range):
     rot_x = tf.reduce_max(tf.abs(rot_x))
     rot_y = tf.reduce_max(tf.abs(rot_y))
@@ -132,7 +55,7 @@ def get_batch_size(final_patch_size, rot_x, rot_y, rot_z, scale_range):
             tf.stack((tf.abs(rotate_coords_2d(coords, rot_x)), final_shape)),
             axis=0,
         )
-    final_shape /= min(scale_range)
+    final_shape /= tf.math.reduce_min(scale_range)
     return tf.cast(final_shape, tf.int32)
 
 
@@ -183,7 +106,7 @@ class DataAugmentor:
         self.patch_size = tf.convert_to_tensor(stage_plans["patch_size"], tf.int64)  # here, in the orginal code, the author convert it to np.array. It may need to change later.
         self.do_dummy_2D_aug = stage_plans["do_dumy_2D_data_aug"]
         self.pad_all_sides = nan
-        self.use_mask_for_norm = plans["use_mask_for_norm"]
+        self.use_mask_for_norm = plans["use_mask_for_norm"][0]  # TODO here, the orignal vaule of this key is an Order Dict, which is not supported in TF Tensor. But since it has just one value, we just choose the first
         if len(self.patch_size) == 2:
             self.threeD = TFbF
         elif len(self.patch_size) == 3:
@@ -195,42 +118,95 @@ class DataAugmentor:
 
     def setup_DA_params(self):
         if self.threeD:
-            self.data_aug_param = default_3D_augmentation_params
-            self.data_aug_param["rotation_x"] = (
+            rotation_x = (
                 -30.0 / 360 * 2.0 * pi,
                 30.0 / 360 * 2.0 * pi,
             )
-            self.data_aug_param["rotation_y"] = (
+            rotation_y = (
                 -30.0 / 360 * 2.0 * pi,
                 30.0 / 360 * 2.0 * pi,
             )
-            self.data_aug_param["rotation_z"] = (
+            rotation_z = (
                 -30.0 / 360 * 2.0 * pi,
                 30.0 / 360 * 2.0 * pi,
             )
             if self.do_dummy_2D_aug:
-                self.data_aug_param["dummy_2D"] = TFbT
-                print("Using dummy2d data augmentation")
-                self.data_aug_param[
-                    "elastic_deform_alpha"
-                ] = default_2D_augmentation_params["elastic_deform_alpha"]
-                self.data_aug_param[
-                    "elastic_deform_sigma"
-                ] = default_2D_augmentation_params["elastic_deform_sigma"]
-                self.data_aug_param[
-                    "rotation_x"
-                ] = default_2D_augmentation_params["rotation_x"]
+                dummy_2D = TFbT
+                # print("Using dummy2d data augmentation")
+                elastic_deform_alpha = (0.0, 200.0)
+                elastic_deform_sigma = (9.0, 13.0)
+                rotation_x = (
+                                -180.0 / 360 * 2.0 * pi,
+                                180.0 / 360 * 2.0 * pi,
+                            )
+                self.data_aug_param = TFDADefault3DParams(
+                    rotation_x=rotation_x,
+                    rotation_y=rotation_y,
+                    rotation_z=rotation_z,
+                    dummy_2D=dummy_2D,
+                    elastic_deform_alpha=elastic_deform_alpha,
+                    elastic_deform_sigma=elastic_deform_sigma,
+                    scale_range=(0.7, 1.4),
+                    do_elastic=TFbF,
+                    selected_seg_channels=[0],
+                    patch_size_for_spatial_transform=self.patch_size,
+                    num_cached_per_thread=2,
+                    mask_was_used_for_normalization=self.use_mask_for_norm,
+                )
+            else:
+                self.data_aug_param = TFDADefault3DParams(
+                    rotation_x=rotation_x,
+                    rotation_y=rotation_y,
+                    rotation_z=rotation_z,
+                    scale_range=(0.7, 1.4),
+                    do_elastic=TFbF,
+                    selected_seg_channels=[0],
+                    patch_size_for_spatial_transform=self.patch_size,
+                    num_cached_per_thread=2,
+                    mask_was_used_for_normalization=self.use_mask_for_norm
+                )
         else:
             self.do_dummy_2D_aug = TFbF
-            if max(self.patch_size) / min(self.patch_size) > 1.5:
-                default_2D_augmentation_params["rotation_x"] = (
+            if tf.maximum(self.patch_size) / tf.minimum(self.patch_size) > 1.5:
+                rotation_x = (
                     -15.0 / 360 * 2.0 * pi,
                     15.0 / 360 * 2.0 * pi,
                 )
-            self.data_aug_param = default_2D_augmentation_params
-        self.data_aug_param[
-            "mask_was_used_for_normalization"
-        ] = self.use_mask_for_norm
+            else:
+                rotation_x = (
+                    -180.0 / 360 * 2.0 * pi,
+                    180.0 / 360 * 2.0 * pi,
+                )
+            elastic_deform_alpha = (0.0, 200.0)
+            elastic_deform_sigma = (9.0, 13.0)
+            rotation_y = (
+                -0.0 / 360 * 2.0 * pi,
+                0.0 / 360 * 2.0 * pi,
+            )
+            rotation_z = (
+                -0.0 / 360 * 2.0 * pi,
+                0.0 / 360 * 2.0 * pi,
+            )
+            dummy_2D = TFbF
+            mirror_axes = (
+                0,
+                1,
+            )
+            self.data_aug_param = TFDADefault3DParams(
+                rotation_x=rotation_x,
+                rotation_y=rotation_y,
+                rotation_z=rotation_z,
+                elastic_deform_alpha=elastic_deform_alpha,
+                elastic_deform_sigma=elastic_deform_sigma,
+                dummy_2D=dummy_2D,
+                mirror_axes=mirror_axes,
+                mask_was_used_for_normalization=self.use_mask_for_norm,
+                scale_range=(0.7, 1.4),
+                do_elastic=TFbF,
+                selected_seg_channels=[0],
+                patch_size_for_spatial_transform=self.patch_size,
+                num_cached_per_thread=2
+            )
 
         if self.do_dummy_2D_aug:
             self.basic_generator_patch_size = get_batch_size(
@@ -238,7 +214,7 @@ class DataAugmentor:
                 self.data_aug_param["rotation_x"],
                 self.data_aug_param["rotation_y"],
                 self.data_aug_param["rotation_z"],
-                self.data_aug_param["scale_range"],
+                (0.85, 1.25),
             )
             self.basic_generator_patch_size = tf.constant(
                 [self.patch_size[0]] + list(self.basic_generator_patch_size)
@@ -250,16 +226,9 @@ class DataAugmentor:
                 self.data_aug_param["rotation_x"],
                 self.data_aug_param["rotation_y"],
                 self.data_aug_param["rotation_z"],
-                self.data_aug_param["scale_range"],
+                (0.85, 1.25),
             )
         self.basic_generator_patch_size = tf.cast(self.basic_generator_patch_size, tf.int64)
-        self.data_aug_param["scale_range"] = (0.7, 1.4)
-        self.data_aug_param["do_elastic"] = TFbF
-        self.data_aug_param["selected_seg_channels"] = [0]
-        self.data_aug_param[
-            "patch_size_for_spatial_transform"
-        ] = self.patch_size
-        self.data_aug_param["num_cached_per_thread"] = 2
 
     @tf.function(experimental_follow_type_hints=TFbT)
     def formalize_data_3d(self, data: DTFT) -> Tuple[tf.Tensor, tf.Tensor]:
