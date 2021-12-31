@@ -43,10 +43,10 @@ from tfda.augmentations.color_augmentations import (
     augment_brightness_additive,
     augment_brightness_multiplicative,
     augment_contrast,
-    augment_gamma,
+    augment_gamma
 )
 from tfda.base import DTFT, TFDABase
-from tfda.defs import TFbF
+from tfda.defs import TFbF, TFDAData
 from tfda.utils import to_tf_bool, to_tf_float
 
 
@@ -54,8 +54,7 @@ class ColorTrans(TFDABase):
     """Base of color transform."""
 
     def __init__(self, **kws):
-        self.per_channel = True
-        super().__init__(**kws)
+        super().__init__(per_channel=True, **kws)
 
 
 class ContrastAugmentationTransform(ColorTrans):
@@ -69,24 +68,24 @@ class ContrastAugmentationTransform(ColorTrans):
     # p_per_channel: float = 1
 
     @tf.function(experimental_follow_type_hints=True)
-    def call(self, data_dict: DTFT) -> DTFT:
+    def call(self, dataset: TFDAData) -> TFDAData:
         """Call the transform."""
-        data_dict = data_dict.copy()
-        data_dict[self.data_key] = tf.map_fn(
-            lambda x: tf.cond(
-                tf.random.uniform(()) < self.p_per_sample,
-                lambda: augment_contrast(
-                    x,
-                    self.contrast_range,
-                    self.preserve_range,
-                    self.per_channel,
-                    self.p_per_channel,
+        return dataset.new_data(
+            tf.map_fn(
+                lambda x: tf.cond(
+                    tf.random.uniform(()) < self.defs.p_per_sample,
+                    lambda: augment_contrast(
+                        x,
+                        self.defs.contrast_range,
+                        self.defs.preserve_range,
+                        self.defs.per_channel,
+                        self.defs.p_per_channel,
+                    ),
+                    lambda: x,
                 ),
-                lambda: x,
-            ),
-            data_dict[self.data_key],
+                dataset.data,
+            )
         )
-        return data_dict
 
 
 class BrightnessTransform(ColorTrans):
@@ -96,60 +95,53 @@ class BrightnessTransform(ColorTrans):
         self,
         mu: float,
         sigma: float,
-        per_channel: bool = True,
         **kws,
     ) -> None:
         super().__init__(**kws)
         self.mu = to_tf_float(mu)
         self.sigma = to_tf_float(sigma)
-        self.per_channel = to_tf_bool(per_channel)
 
     @tf.function(experimental_follow_type_hints=True)
-    def call(self, data_dict: DTFT) -> DTFT:
+    def call(self, dataset: TFDAData) -> TFDAData:
         """Call the transform."""
-        data_dict = data_dict.copy()
-        data_dict[self.data_key] = tf.map_fn(
-            lambda x: tf.cond(
-                tf.random.uniform(()) < self.p_per_sample,
-                lambda: augment_brightness_additive(
-                    x,
-                    self.mu,
-                    self.sigma,
-                    self.per_channel,
-                    self.p_per_channel,
+        return dataset.new_data(
+            tf.map_fn(
+                lambda x: tf.cond(
+                    tf.random.uniform(()) < self.defs.p_per_sample,
+                    lambda: augment_brightness_additive(
+                        x,
+                        self.mu,
+                        self.sigma,
+                        self.defs.per_channel,
+                        self.defs.p_per_channel,
+                    ),
+                    lambda: x,
                 ),
-                lambda: x,
-            ),
-            data_dict[self.data_key],
+                dataset.data,
+            )
         )
-        return data_dict
 
 
 class BrightnessMultiplicativeTransform(ColorTrans):
     """Augments the brightness of data."""
 
-    # multiplier_range: tuple[float, float] = (0.5, 2)
-    # per_channel: bool = True
-    # data_key: str = "data"
-    # p_per_sample: float = 1
-
     @tf.function(experimental_follow_type_hints=True)
-    def call(self, data_dict: DTFT) -> DTFT:
+    def call(self, dataset: TFDAData) -> TFDAData:
         """Call the transform."""
-        data_dict = data_dict.copy()
-        data_dict[self.data_key] = tf.map_fn(
-            lambda x: tf.cond(
-                tf.random.uniform(()) < self.p_per_sample,
-                lambda: augment_brightness_multiplicative(
-                    x,
-                    self.multiplier_range,
-                    self.per_channel,
+        return dataset.new_data(
+            tf.map_fn(
+                lambda x: tf.cond(
+                    tf.random.uniform(()) < self.defs.p_per_sample,
+                    lambda: augment_brightness_multiplicative(
+                        x,
+                        self.defs.multiplier_range,
+                        self.defs.per_channel,
+                    ),
+                    lambda: x,
                 ),
-                lambda: x,
-            ),
-            data_dict[self.data_key],
+                dataset.data,
+            )
         )
-        return data_dict
 
 
 class GammaTransform(TFDABase):
@@ -171,36 +163,36 @@ class GammaTransform(TFDABase):
     def __init__(
         self,
         gamma_range: tf.Tensor = (0.5, 2),
-        invert_image: tf.Tensor = TFbF,
-        per_channel: tf.Tensor = TFbF,
-        retain_stats: tf.Tensor = TFbF,
+        invert_image: tf.Tensor = False,
+        per_channel: tf.Tensor = False,
         **kws: tf.Tensor,
     ):
-        super().__init__(**kws)
-        self.retain_stats = tf.convert_to_tensor(retain_stats)
-        self.gamma_range = tf.convert_to_tensor(gamma_range)
-        self.invert_image = tf.convert_to_tensor(invert_image)
-        self.per_channel = tf.convert_to_tensor(per_channel)
+        super().__init__(
+            gamma_range=gamma_range,
+            invert_image=invert_image,
+            per_channel=per_channel,
+            **kws,
+        )
 
     @tf.function(experimental_follow_type_hints=True)
-    def call(self, data_dict: DTFT) -> DTFT:
+    def call(self, dataset: TFDAData) -> TFDAData:
         """Call the transform."""
-        data_dict = data_dict.copy()
-        data_dict[self.data_key] = tf.map_fn(
-            lambda x: tf.cond(
-                tf.random.uniform(()) < self.p_per_sample,
-                lambda: augment_gamma(
-                    x,
-                    self.gamma_range,
-                    self.invert_image,
-                    per_channel=self.per_channel,
-                    retain_stats=self.retain_stats,
+        return dataset.new_data(
+            tf.map_fn(
+                lambda x: tf.cond(
+                    tf.random.uniform(()) < self.defs.p_per_sample,
+                    lambda: augment_gamma(
+                        x,
+                        self.defs.gamma_range,
+                        self.defs.invert_image,
+                        per_channel=self.defs.per_channel,
+                        retain_stats=self.defs.retain_stats,
+                    ),
+                    lambda: x,
                 ),
-                lambda: x,
-            ),
-            data_dict[self.data_key],
+                dataset.data,
+            )
         )
-        return data_dict
 
 
 if __name__ == "__main__":
@@ -209,7 +201,6 @@ if __name__ == "__main__":
         .batch(40)
         .batch(56)
         .batch(40)
-        .batch(1)
         .batch(2)
         .batch(4)
         .prefetch(4)
@@ -222,6 +213,7 @@ if __name__ == "__main__":
 
     ts = Compose(
         [
+            tf.keras.layers.Input(type_spec=TFDAData.Spec(None, tf.TensorSpec(None), tf.TensorSpec(None))),
             ContrastAugmentationTransform(),
             BrightnessTransform(0, 0.1),
             BrightnessMultiplicativeTransform(
@@ -231,21 +223,17 @@ if __name__ == "__main__":
     )
 
     with tf.device("/CPU:0"):
-        tf.print(ts(dict(data=data_sample))["data"].shape)
+        tf.print(ts(TFDAData(data=data_sample)))
 
         images = tf.random.uniform((8, 2, 20, 376, 376))
         labels = tf.random.uniform(
             (8, 1, 20, 376, 376), minval=0, maxval=2, dtype=tf.int32
         )
-        data_dict = {"data": images, "seg": labels}
-        tf.print(
-            data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
-        )  # (8, 2, 20, 376, 376) (8, 1, 20, 376, 376)
+        data_dict = TFDAData(images, labels)
+        tf.print(data_dict)  # (8, 2, 20, 376, 376) (8, 1, 20, 376, 376)
         data_dict = GammaTransform(
             (0.7, 1.5), True, True, retain_stats=True, p_per_sample=0.1
         )(data_dict)
-        tf.print(
-            data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
-        )  # (8, 40, 376, 376) (8, 20, 376, 376)
+        tf.print(data_dict)  # (8, 40, 376, 376) (8, 20, 376, 376)
 
         # tf.print(ts)

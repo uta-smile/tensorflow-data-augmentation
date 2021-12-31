@@ -2,17 +2,17 @@ import tensorflow as tf
 
 # Local
 from tfda.base import DTFT, TFDABase
+from tfda.defs import TFDAData
 
 
 class Convert3DTo2DTransform(TFDABase):
     @tf.function(experimental_follow_type_hints=True)
-    def call(self, data_dict: DTFT):
-        return convert_3d_to_2d_generator(data_dict)
+    def call(self, dataset: TFDAData) -> TFDAData:
+        return convert_3d_to_2d_generator(dataset)
 
 
 @tf.function(experimental_follow_type_hints=True)
-def convert_3d_to_2d_generator(data_dict: DTFT) -> DTFT:
-    data_dict = data_dict.copy()
+def convert_3d_to_2d_generator(dataset: TFDAData) -> TFDAData:
     # data_dict_copy = {}
     # shp = data_dict['data'].shape
     # data_dict_copy['data'] = tf.reshape(data_dict['data'], (shp[0], shp[1] * shp[2], shp[3], shp[4]))
@@ -22,17 +22,15 @@ def convert_3d_to_2d_generator(data_dict: DTFT) -> DTFT:
     # data_dict_copy['orig_shape_seg'] = shp
     # return data_dict_copy
 
-    shp = data_dict["data"].shape
-    data_dict["data"] = tf.reshape(
-        data_dict["data"], (shp[0], shp[1] * shp[2], shp[3], shp[4])
+    shp = dataset["data"].shape
+    data = tf.reshape(
+        dataset["data"], (shp[0], shp[1] * shp[2], shp[3], shp[4])
     )
-    data_dict["orig_shape_data"] = shp
+    # data_dict["orig_shape_data"] = shp
     shp = data_dict["seg"].shape
-    data_dict["seg"] = tf.reshape(
-        data_dict["seg"], (shp[0], shp[1] * shp[2], shp[3], shp[4])
-    )
-    data_dict["orig_shape_seg"] = shp
-    return data_dict
+    seg = tf.reshape(dataset["seg"], (shp[0], shp[1] * shp[2], shp[3], shp[4]))
+    # data_dict["orig_shape_seg"] = shp
+    return TFDAData(data, seg)
 
 
 class Convert2DTo3DTransform(TFDABase):
@@ -130,8 +128,6 @@ class MaskTransform(TFDABase):
         dct_for_where_it_was_used: tf.Tensor,
         mask_idx_in_seg: tf.Tensor = 1,
         set_outside_to: tf.Tensor = 0,
-        data_key: tf.Tensor = "data",
-        seg_key: tf.Tensor = "seg",
         **kws,
     ):
         """
@@ -146,21 +142,18 @@ class MaskTransform(TFDABase):
         """
         super().__init__(**kws)
         self.dct_for_where_it_was_used = dct_for_where_it_was_used
-        self.seg_key = seg_key
-        self.data_key = data_key
         self.set_outside_to = set_outside_to
         self.mask_idx_in_seg = mask_idx_in_seg
 
     @tf.function(experimental_follow_type_hints=True)
-    def call(self, data_dict: DTFT) -> DTFT:
+    def call(self, dataset: TFDAData) -> TFDAData:
         """Call the transform."""
-        data_dict = data_dict.copy()
-        seg = data_dict.get(self.seg_key)
+        seg = dataset.seg
         # if seg is None or seg.shape[1] < self.mask_idx_in_seg:
         #     raise Warning(
         #         "mask not found, seg may be missing or seg[:, mask_idx_in_seg] may not exist"
         #     )
-        data = data_dict.get(self.data_key)
+        data = dataset.data
         data_list = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
         for b in tf.range(tf.shape(data)[0]):
             mask = seg[b, self.mask_idx_in_seg]
@@ -182,59 +175,58 @@ class MaskTransform(TFDABase):
             data_b = channel_list.stack()
             data_list = data_list.write(b, data_b)
 
-        data_dict[self.data_key] = data_list.stack()
-        return data_dict
+        return dataset.new_data(data_list.stack())
 
 
 if __name__ == "__main__":
     with tf.device("/CPU:0"):
-        images = tf.random.uniform((8, 2, 20, 376, 376))
-        labels = tf.random.uniform(
-            (8, 1, 20, 376, 376), minval=0, maxval=2, dtype=tf.int32
-        )
-        data_dict = {"data": images, "seg": labels}
-        tf.print(
-            data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
-        )  # (8, 2, 20, 376, 376) (8, 1, 20, 376, 376)
-        data_dict = Convert3DTo2DTransform()(data_dict)
-        tf.print(
-            data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
-        )  # (8, 40, 376, 376) (8, 20, 376, 376)
+        # images = tf.random.uniform((8, 2, 20, 376, 376))
+        # labels = tf.random.uniform(
+        #     (8, 1, 20, 376, 376), minval=0, maxval=2, dtype=tf.int32
+        # )
+        # data_dict = TFDAData(images, labels)
+        # tf.print(
+        #     data_dict, data_dict["data"].shape, data_dict["seg"].shape
+        # )  # (8, 2, 20, 376, 376) (8, 1, 20, 376, 376)
+        # data_dict = Convert3DTo2DTransform()(data_dict)
+        # tf.print(
+        #     data_dict, data_dict["data"].shape, data_dict["seg"].shape
+        # )  # (8, 40, 376, 376) (8, 20, 376, 376)
 
-        images = tf.random.uniform((8, 40, 376, 376))
-        labels = tf.random.uniform(
-            (8, 20, 376, 376), minval=0, maxval=2, dtype=tf.int32
-        )
-        data_dict = {
-            "data": images,
-            "seg": labels,
-            "orig_shape_data": (8, 2, 20, 376, 376),
-            "orig_shape_seg": (8, 1, 20, 376, 376),
-        }
-        tf.print(
-            data_dict["data"].shape, data_dict["seg"].shape
-        )  # (8, 40, 376, 376) (8, 20, 376, 376)
+        # images = tf.random.uniform((8, 40, 376, 376))
+        # labels = tf.random.uniform(
+        #     (8, 20, 376, 376), minval=0, maxval=2, dtype=tf.int32
+        # )
+        # data_dict = {
+        #     "data": images,
+        #     "seg": labels,
+        #     "orig_shape_data": (8, 2, 20, 376, 376),
+        #     "orig_shape_seg": (8, 1, 20, 376, 376),
+        # }
+        # tf.print(
+        #     data_dict["data"].shape, data_dict["seg"].shape
+        # )  # (8, 40, 376, 376) (8, 20, 376, 376)
         # data_dict = Convert2DTo3DTransform()(data_dict)
-        tf.print(
-            data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
-        )  # (8, 2, 20, 376, 376) (8, 1, 20, 376, 376)
+        # tf.print(
+        #     data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
+        # )  # (8, 2, 20, 376, 376) (8, 1, 20, 376, 376)
 
-        images = tf.random.uniform((1, 2, 2, 2, 2))
-        labels = tf.random.uniform(
-            (1, 1, 2, 2, 2), minval=0, maxval=3, dtype=tf.int32
-        )
-        data_dict = {"data": images, "target": labels}
-        tf.print(
-            data_dict["data"].shape, data_dict["target"].shape
-        )  # (1, 2, 2, 2, 2) (1, 1, 2, 2, 2)
-        tf.print(data_dict["target"])
+        # images = tf.random.uniform((1, 2, 2, 2, 2))
+        # labels = tf.random.uniform(
+        #     (1, 1, 2, 2, 2), minval=0, maxval=3, dtype=tf.int32
+        # )
+        # data_dict = {"data": images, "target": labels}
+        # tf.print(
+        #     data_dict["data"].shape, data_dict["target"].shape
+        # )  # (1, 2, 2, 2, 2) (1, 1, 2, 2, 2)
+        # tf.print(data_dict["target"])
         # data_dict = ConvertSegmentationToRegionsTransform(
         #     {"0": (1, 2), "1": (2,)}, "target", "target"
         # )(**data_dict)
-        tf.print(
-            data_dict["data"].shape, data_dict["target"].shape
-        )  # (1, 2, 2, 2, 2) (1, 2, 2, 2, 2)
-        tf.print(data_dict["target"])
+        # tf.print(
+        #     data_dict["data"].shape, data_dict["target"].shape
+        # )  # (1, 2, 2, 2, 2) (1, 2, 2, 2, 2)
+        # tf.print(data_dict["target"])
 
         images = tf.random.uniform((1, 2, 2, 2, 2))
         labels = (
@@ -243,7 +235,7 @@ if __name__ == "__main__":
             )
             - 1
         )
-        data_dict = {"data": images, "seg": labels}
+        data_dict = TFDAData(images, labels)
         tf.print(
             data_dict["data"].shape, data_dict["seg"].shape
         )  # (1, 2, 2, 2, 2) (1, 1, 2, 2, 2)
