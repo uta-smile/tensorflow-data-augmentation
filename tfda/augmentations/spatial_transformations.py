@@ -257,7 +257,7 @@ def augment_spatial(
                         order_seg,
                         border_mode_seg,
                         border_cval_seg,
-                        is_seg=True,
+                        is_seg=TFbT,
                     )
                     seg_sample = update_tf_channel(
                         seg_sample, channel_id, seg_channel
@@ -297,7 +297,7 @@ def augment_spatial(
                 data[sample_id : sample_id + 1], patch_size, s
             )
             data_result = update_tf_channel(data_result, sample_id, d[0])
-            if tf.math.reduce_any(tf.math.is_nan(seg)):
+            if not tf.math.reduce_any(tf.math.is_nan(seg)):
                 seg_result = update_tf_channel(seg_result, sample_id, s[0])
         sample_id = sample_id + 1
         return sample_id, patch_size, data, seg, data_result, seg_result

@@ -651,12 +651,12 @@ def interpolate_img(
 
 @tf.function
 def map_coordinates_seg(seg, cl, coords, result, order):
-    seg = tf.cast(tf.equal(seg, cl), dtype=tf.float32)
+    cl_seg = tf.cast(tf.equal(seg, cl), dtype=tf.float32)
     # order = tf.cast(order, tf.int64)
     new_seg = tf.cond(
         tf.equal(tf.rank(seg), tf.constant(3)),
-        lambda: map_chunk_coordinates_3d_2(seg, coords, order),
-        lambda: map_coordinates_2d(seg, coords, order),
+        lambda: map_chunk_coordinates_3d_2(cl_seg, coords, order),
+        lambda: map_coordinates_2d(cl_seg, coords, order),
     )
     indices = tf.where(tf.greater_equal(new_seg, tf.constant(0.5)))
     result = tf.tensor_scatter_nd_update(
@@ -1328,7 +1328,7 @@ def pad(data, need_to_pad, pad_mode, pad_kwargs):
 def get_lbs_for_center_crop(crop_size, data_shape):
     data_shape = tf.cast(data_shape, tf.int64)
     lbs = tf.map_fn(
-        lambda i: (data_shape[i] - crop_size[i]) // 2,
+        lambda i: (data_shape[i + 2] - crop_size[i]) // 2,
         elems=tf.range(tf.shape(data_shape, out_type=tf.int64)[0] - 2),
     )
     return lbs
