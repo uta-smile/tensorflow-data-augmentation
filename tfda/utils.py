@@ -63,3 +63,9 @@ def to_tf_int(x: Any) -> tf.Tensor:
 def isnan(x: tf.Tensor) -> tf.Tensor:
     """Check if there is any nan in it."""
     return tf.math.reduce_any(tf.math.is_nan(x))
+
+
+@tf.function(experimental_follow_type_hints=True)
+def isnotnan(x: tf.Tensor) -> tf.Tensor:
+    """Check if there is any nan in it."""
+    return tf.math.reduce_any(not tf.math.is_nan(x))
