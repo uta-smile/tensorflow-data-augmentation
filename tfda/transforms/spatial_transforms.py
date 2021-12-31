@@ -45,10 +45,10 @@ from typing import Tuple
 # tf.debugging.set_log_device_placement(True)
 from tfda.augmentations.spatial_transformations import (
     augment_mirroring,
-    augment_spatial,
+    augment_spatial
 )
 from tfda.base import DTFT, TFDABase
-from tfda.defs import TFbF, TFbT, nan, pi
+from tfda.defs import TFDAData, TFbF, TFbT, nan, pi
 
 
 class SpatialTransform(TFDABase):
@@ -65,15 +65,15 @@ class SpatialTransform(TFDABase):
         angle_z: tf.Tensor = (0, 2 * pi),
         do_scale: tf.Tensor = TFbT,
         scale: tf.Tensor = (0.75, 1.25),
-        border_mode_data: tf.Tensor = "nearest",
+        border_mode_data: str = "nearest",
         border_cval_data: tf.Tensor = 0.0,
         order_data: tf.Tensor = 3,
-        border_mode_seg: tf.Tensor = "constant",
+        border_mode_seg: str = "constant",
         border_cval_seg: tf.Tensor = 0.0,
         order_seg: tf.Tensor = 0.0,
         random_crop: tf.Tensor = TFbT,
-        data_key: tf.Tensor = "data",
-        label_key: tf.Tensor = "seg",
+        data_key: str = "data",
+        label_key: str = "seg",
         p_el_per_sample: tf.Tensor = 1.0,
         p_scale_per_sample: tf.Tensor = 1.0,
         p_rot_per_sample: tf.Tensor = 1.0,
@@ -83,38 +83,37 @@ class SpatialTransform(TFDABase):
         **kws,
     ) -> None:
         super().__init__(**kws)
-        self.patch_size = patch_size
-        self.patch_center_dist_from_border = patch_center_dist_from_border
-        self.do_elastic_deform = do_elastic_deform
-        self.alpha = alpha
-        self.sigma = sigma
-        self.do_rotation = do_rotation
-        self.angle_x = angle_x
-        self.angle_y = angle_y
-        self.angle_z = angle_z
-        self.do_scale = do_scale
-        self.scale = scale
+        self.patch_size = tf.convert_to_tensor(patch_size)
+        self.patch_center_dist_from_border = tf.convert_to_tensor(patch_center_dist_from_border)
+        self.do_elastic_deform = tf.convert_to_tensor(do_elastic_deform)
+        self.alpha = tf.convert_to_tensor(alpha)
+        self.sigma = tf.convert_to_tensor(sigma)
+        self.do_rotation = tf.convert_to_tensor(do_rotation)
+        self.angle_x = tf.convert_to_tensor(angle_x)
+        self.angle_y = tf.convert_to_tensor(angle_y)
+        self.angle_z = tf.convert_to_tensor(angle_z)
+        self.do_scale = tf.convert_to_tensor(do_scale)
+        self.scale = tf.convert_to_tensor(scale)
         self.border_mode_data = border_mode_data
-        self.border_cval_data = border_cval_data
-        self.order_data = order_data
+        self.border_cval_data = tf.convert_to_tensor(border_cval_data)
+        self.order_data = tf.convert_to_tensor(order_data)
         self.border_mode_seg = border_mode_seg
-        self.border_cval_seg = border_cval_seg
-        self.order_seg = order_seg
-        self.random_crop = random_crop
+        self.border_cval_seg = tf.convert_to_tensor(border_cval_seg)
+        self.order_seg = tf.convert_to_tensor(order_seg)
+        self.random_crop = tf.convert_to_tensor(random_crop)
         self.data_key = data_key
         self.label_key = label_key
-        self.p_el_per_sample = p_el_per_sample
-        self.p_scale_per_sample = p_scale_per_sample
-        self.p_rot_per_sample = p_rot_per_sample
-        self.independent_scale_for_each_axis = independent_scale_for_each_axis
-        self.p_rot_per_axis = p_rot_per_axis
-        self.p_independent_scale_per_axis = p_independent_scale_per_axis
+        self.p_el_per_sample = tf.convert_to_tensor(p_el_per_sample)
+        self.p_scale_per_sample = tf.convert_to_tensor(p_scale_per_sample)
+        self.p_rot_per_sample = tf.convert_to_tensor(p_rot_per_sample)
+        self.independent_scale_for_each_axis = tf.convert_to_tensor(independent_scale_for_each_axis)
+        self.p_rot_per_axis = tf.convert_to_tensor(p_rot_per_axis)
+        self.p_independent_scale_per_axis = tf.convert_to_tensor(p_independent_scale_per_axis)
 
     @tf.function(experimental_follow_type_hints=True)
-    def call(self, data_dict: DTFT) -> DTFT:
-        data_dict = data_dict.copy()
-        data = data_dict.get(self.data_key, nan)
-        seg = data_dict.get(self.label_key, nan)
+    def call(self, dataset: TFDAData) -> TFDAData:
+        data = dataset.data
+        seg = dataset.seg
 
         # if self.patch_size is None:
         #     if len(data.shape) == 4:
@@ -157,10 +156,10 @@ class SpatialTransform(TFDABase):
             p_independent_scale_per_axis=self.p_independent_scale_per_axis,
         )
 
-        data_dict[self.data_key] = ret_val[0]
+        data = ret_val[0]
         if not tf.math.reduce_any(tf.math.is_nan(seg)):
-            data_dict[self.label_key] = ret_val[1]
-        return data_dict
+            seg = ret_val[1]
+        return TFDAData(data, seg)
 
 
 class MirrorTransform(TFDABase):
@@ -178,16 +177,15 @@ class MirrorTransform(TFDABase):
         self.axes = axes
 
     @tf.function(experimental_follow_type_hints=True)
-    def call(self, data_dict: DTFT) -> DTFT:
-        data_dict = data_dict.copy()
-        data = data_dict.get(self.data_key, nan)
-        seg = data_dict.get(self.label_key, nan)
+    def call(self, dataset: TFDAData) -> TFDAData:
+        data = dataset.data
+        seg = dataset.seg
 
         data_list = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
         seg_list = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
 
         for b in tf.range(tf.shape(data)[0]):
-            if tf.random.uniform(()) < self.p_per_sample:
+            if tf.random.uniform(()) < self.defs.p_per_sample:
                 sample_seg = nan
                 if not tf.math.reduce_any(tf.math.is_nan(seg)):
                     sample_seg = seg[b]
@@ -198,11 +196,11 @@ class MirrorTransform(TFDABase):
                 if not tf.math.reduce_any(tf.math.is_nan(seg)):
                     seg_list = seg_list.write(b, ret_val[1])
 
-        data_dict["data"] = data_list.stack()
+        data = data_list.stack()
         if tf.rank(seg) > 0 and seg_list.size() > 0:
-            data_dict["seg"] = seg_list.stack()
+            seg = seg_list.stack()
 
-        return data_dict
+        return TFDAData(data, seg)
 
 
 @tf.function
@@ -211,11 +209,11 @@ def test():
     labels = tf.random.uniform(
         (8, 1, 20, 376, 376), minval=0, maxval=2, dtype=tf.float32
     )
-    data_dict = {"data": images, "seg": labels}
+    data_dict = TFDAData(images, labels)
     # tf.print(
     #     data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
     # )  # (8, 2, 20, 376, 376) (8, 1, 20, 376, 376)
-    data_dict = MirrorTransform((0, 1, 2))(dict(data=images, seg=labels))
+    data_dict = MirrorTransform((0, 1, 2))(TFDAData(data=images, seg=labels))
     # tf.print(
     #     data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
     # )  # (8, 2, 20, 376, 376) (8, 1, 20, 376, 376)
@@ -244,7 +242,7 @@ if __name__ == "__main__":
     # mirrored_strategy = tf.distribute.MirroredStrategy()
     # with mirrored_strategy.scope():
     with tf.device("/CPU:0"):
-        tf.print(sa(dict(data=data_sample, seg=seg_sample)))
+        tf.print(sa(TFDAData(data=data_sample, seg=seg_sample)))
         tf.print(test()["data"].shape)
 
         tf.print("END")

@@ -35,15 +35,15 @@ project  : tfda
 Tensorflow data augmentation base
 """
 # Standard Library
-import abc
-from itertools import chain
-from tfda.utils import to_tf_float
 
 import tensorflow as tf
 
-from tfda.defs import DTFT, Seqs
+# Types
+from typing import Any
 
+# Local
 # tf.debugging.set_log_device_placement(True)
+from tfda.defs import TFDADefs, nan
 
 
 class TFDABase(tf.keras.layers.Layer):
@@ -59,99 +59,44 @@ class TFDABase(tf.keras.layers.Layer):
         contrast_range: tf.Tensor = (0.75, 1.25),
         multiplier_range: tf.Tensor = (0.5, 2),
         preserve_range: tf.Tensor = True,
-        noise_variance: tf.Tensor = (0., 0.1),
+        noise_variance: tf.Tensor = (0.0, 0.1),
         different_sigma_per_channel: tf.Tensor = True,
+        gamma_range: tf.Tensor = (0.5, 2),
+        invert_image: tf.Tensor = False,
+        retain_stats: tf.Tensor = False,
+        blur_sigma: tf.Tensor = (1.0, 5.0),
+        zoom_range: tf.Tensor = (0.5, 1.0),
+        order_downsample: tf.Tensor = 1,
+        order_upsample: tf.Tensor = 0,
+        ignore_axes: tf.Tensor = nan,
         **kws,
     ) -> None:
         super().__init__(**kws)
-        self.p_per_sample = tf.convert_to_tensor(p_per_sample)
-        self.p_per_channel = tf.convert_to_tensor(p_per_channel)
-        self.per_channel = tf.convert_to_tensor(per_channel)
-        self.contrast_range = tf.convert_to_tensor(contrast_range)
-        self.multiplier_range = tf.convert_to_tensor(multiplier_range)
-        self.preserve_range = tf.convert_to_tensor(preserve_range)
-        self.noise_variance = tf.convert_to_tensor(noise_variance)
-        self.different_sigma_per_channel = tf.convert_to_tensor(different_sigma_per_channel)
-
-        self.data_key = data_key
-        self.label_key = label_key
-
-
-class RndTransform(TFDABase):
-    """Random transform."""
-
-    def __init__(self, transform: TFDABase, prob: float = 0.5, **kws):
-        super().__init__(**kws)
-        self.transform = transform
-        self.prob = prob
-
-    @tf.function
-    def call(self, **data_dict: tf.Tensor) -> DTFT:
-        """Call the Rnd transform."""
-        return (
-            tf.random.uniform() < self.prob
-            and self.transform(data_dict)
-            or data_dict
+        self.defs = TFDADefs(
+            p_per_sample=p_per_sample,
+            p_per_channel=p_per_channel,
+            per_channel=per_channel,
+            contrast_range=contrast_range,
+            multiplier_range=multiplier_range,
+            preserve_range=preserve_range,
+            noise_variance=noise_variance,
+            different_sigma_per_channel=different_sigma_per_channel,
+            gamma_range=gamma_range,
+            invert_image=invert_image,
+            retain_stats=retain_stats,
+            blur_sigma=blur_sigma,
+            zoom_range=zoom_range,
+            order_upsample=order_upsample,
+            order_downsample=order_downsample,
+            ignore_axes=ignore_axes,
+            # not tensor
+            data_key=data_key,
+            label_key=label_key,
         )
 
 
-class IDTransform(TFDABase):
-    """Identity transform."""
-
-    @tf.function
-    def call(self, **data_dict: tf.Tensor) -> DTFT:
-        """Call the transform."""
-        return data_dict
-
-
-class Compose(TFDABase):
-    """Compose transforms."""
-
-    def __init__(self, transforms: Seqs[TFDABase], **kws) -> None:
-        super().__init__(**kws)
-        self.transforms = transforms
-
-    def add(self, transform: TFDABase) -> "Compose":
-        """Add transform."""
-        self.transforms = chain(self.transforms, (transform,))
-        return self
-
-    def call(self, data_dict: DTFT) -> DTFT:
-        """Call the transforms."""
-        for transform in self.transforms:
-            data_dict = transform(data_dict)
-        return data_dict
-
-    def __repr__(self) -> str:
-        return f"{type(self).__name__} ( {repr(self.transforms)} )"
+Compose = tf.keras.Sequential
 
 
 if __name__ == "__main__":
-
-    class _Add1Transform(TFDABase):
-        """Add 1 transform.
-
-        For test only
-        """
-
-        @tf.function
-        def add1(self, x: tf.Tensor) -> tf.Tensor:
-            """Add 1."""
-            return x + 1
-
-        @tf.function
-        def call(self, **data_dict: tf.Tensor) -> DTFT:
-            """Call the add 1 transform."""
-
-            for key, data in data_dict.items():
-                data_dict[key] = self.add1(data)
-
-            return data_dict
-
-    data_sample = next(
-        iter(
-            tf.data.Dataset.range(20, output_type=tf.float32).batch(5).batch(2)
-        )
-    )
-
-    tf.print(_Add1Transform()(x=data_sample))
+    pass

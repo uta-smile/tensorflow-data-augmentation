@@ -1,8 +1,8 @@
 import tensorflow as tf
 
 # Local
-from tfda.base import DTFT, TFDABase
-from tfda.defs import nan
+from tfda.base import TFDABase
+from tfda.defs import TFDAData, nan
 
 
 class SimulateLowResolutionTransform(TFDABase):
@@ -32,52 +32,30 @@ class SimulateLowResolutionTransform(TFDABase):
         order_upsample:
     """
 
-    def __init__(
-        self,
-        zoom_range: tf.Tensor = (0.5, 1),
-        per_channel: tf.Tensor = False,
-        p_per_channel: tf.Tensor = 1.0,
-        channels: tf.Tensor = nan,
-        order_downsample: tf.Tensor = 1,
-        order_upsample: tf.Tensor = 0,
-        data_key: tf.Tensor = "data",
-        p_per_sample: tf.Tensor = 1.0,
-        ignore_axes: tf.Tensor = nan,
-        **kws
-    ):
+    def __init__(self, channels: tf.Tensor = [nan], **kws) -> None:
         super().__init__(**kws)
-        self.order_upsample = order_upsample
-        self.order_downsample = order_downsample
-        self.channels = channels
-        self.per_channel = per_channel
-        self.p_per_channel = p_per_channel
-        self.p_per_sample = p_per_sample
-        self.data_key = data_key
-        self.zoom_range = zoom_range
-        self.ignore_axes = ignore_axes
+        self.channels = tf.convert_to_tensor(channels)
 
     @tf.function(experimental_follow_type_hints=True)
-    def call(self, data_dict: DTFT) -> DTFT:
+    def call(self, dataset: TFDAData) -> TFDAData:
         """Call the transform."""
-        data_dict = data_dict.copy()
-        data_dict[self.data_key] = tf.map_fn(
+        return dataset.new_data(tf.map_fn(
             lambda xs: tf.cond(
-                tf.random.uniform(()) < self.p_per_sample,
+                tf.random.uniform(()) < self.defs.p_per_sample,
                 lambda: augment_linear_downsampling_scipy(
                     xs,
-                    zoom_range=self.zoom_range,
-                    per_channel=self.per_channel,
-                    p_per_channel=self.p_per_channel,
+                    zoom_range=self.defs.zoom_range,
+                    per_channel=self.defs.per_channel,
+                    p_per_channel=self.defs.p_per_channel,
                     channels=self.channels,
-                    order_downsample=self.order_downsample,
-                    order_upsample=self.order_upsample,
-                    ignore_axes=self.ignore_axes,
+                    order_downsample=self.defs.order_downsample,
+                    order_upsample=self.defs.order_upsample,
+                    ignore_axes=self.defs.ignore_axes,
                 ),
                 lambda: xs,
             ),
-            data_dict[self.data_key],
-        )
-        return data_dict
+            dataset.data
+        ))
 
 
 @tf.function
@@ -170,7 +148,7 @@ def augment_linear_downsampling_scipy(
             ):  # ignore_axes = 0
                 for i in tf.range(dim):
                     condition = tf.math.reduce_any(
-                        ignore_axes == tf.cast(i, tf.float32)
+                        ignore_axes == i
                     )
                     case_true = shp[i]
                     case_false = target_shape[i]
@@ -212,9 +190,9 @@ if __name__ == "__main__":
         labels = tf.random.uniform(
             (8, 1, 20, 376, 376), minval=0, maxval=2, dtype=tf.float32
         )
-        data_dict = {"data": images, "seg": labels}
+        data_dict = TFDAData(images, labels)
         tf.print(
-            data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
+            data_dict, data_dict["data"].shape, data_dict["seg"].shape
         )  # (8, 2, 20, 376, 376) (8, 1, 20, 376, 376)
         data_dict = SimulateLowResolutionTransform(
             zoom_range=(0.5, 1),
@@ -226,5 +204,5 @@ if __name__ == "__main__":
             ignore_axes=(0,),
         )(data_dict)
         tf.print(
-            data_dict.keys(), data_dict["data"].shape, data_dict["seg"].shape
+            data_dict, data_dict["data"].shape, data_dict["seg"].shape
         )  # (8, 40, 376, 376) (8, 20, 376, 376)

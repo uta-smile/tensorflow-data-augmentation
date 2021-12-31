@@ -43,7 +43,7 @@ import os
 import tensorflow as tf
 
 # Types
-from typing import Dict, Iterable, Sequence, TypeVar, Union
+from typing import Dict, Iterable, Optional, Sequence, TypeVar, Union
 
 DTFT = Dict[str, tf.Tensor]
 T = TypeVar("T")
@@ -58,11 +58,32 @@ nan = tf.constant(m.nan)
 DR = (-15.0 / 360 * 2.0 * pi, 15.0 / 360 * 2.0 * pi)
 
 
-class TFDAData(tf.experimental.ExtensionType):
+class TFDAData(tf.experimental.BatchableExtensionType):
     """TFDA data set."""
 
+    shape: tf.TensorShape
     data: tf.Tensor
     seg: tf.Tensor
+
+    def __init__(self, data: tf.Tensor = nan, seg: tf.Tensor = nan) -> None:
+        self.data = tf.convert_to_tensor(data)
+        self.seg = tf.convert_to_tensor(seg)
+        self.shape = self.data.shape
+
+    def new_data(self, data: tf.Tensor) -> "TFDAData":
+        """Replace data with new data."""
+        return TFDAData(data, self.seg)
+
+    @tf.function(experimental_follow_type_hints=True)
+    def __getitem__(self, key: str) -> tf.Tensor:
+        """Get item of default params."""
+        return self.__getattribute__(key)
+
+    def __repr__(self) -> str:
+        return (
+            f"TFDAData(data.shape = {self.data.shape}, "
+            f"seg.shape = {self.seg.shape})"
+        )
 
 
 class TFDADefs(tf.experimental.ExtensionType):
@@ -74,10 +95,18 @@ class TFDADefs(tf.experimental.ExtensionType):
     p_per_channel: tf.Tensor = 1.0
     per_channel: tf.Tensor = False
     contrast_range: tf.Tensor = (0.75, 1.25)
-    multiplier_range: tf.Tensor = (0.5, 2.)
+    multiplier_range: tf.Tensor = (0.5, 2.0)
     preserve_range: tf.Tensor = True
     noise_variance: tf.Tensor = (0.0, 0.1)
     different_sigma_per_channel: tf.Tensor = True
+    gamma_range: tf.Tensor = (0.5, 2)
+    invert_image: tf.Tensor = False
+    retain_stats: tf.Tensor = False
+    blur_sigma: tf.Tensor = (1., 5.)
+    zoom_range: tf.Tensor = (0.5, 1.)
+    order_downsample: tf.Tensor = 1
+    order_upsample: tf.Tensor = 0
+    ignore_axes: tf.Tensor = nan
 
 
 class TFDADefault3DParams(tf.experimental.ExtensionType):

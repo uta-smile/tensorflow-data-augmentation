@@ -38,8 +38,8 @@ Channel Selection Transforms
 import tensorflow as tf
 
 # Local
-from tfda.base import DTFT, TFDABase
-from tfda.defs import TFbT, nan
+from tfda.base import TFDABase
+from tfda.defs import TFDAData, TFbT
 
 
 class DataChannelSelectionTransform(TFDABase):
@@ -49,12 +49,12 @@ class DataChannelSelectionTransform(TFDABase):
         super().__init__(**kws)
         self.channels = channels
 
-    def call(self, data_dict: DTFT) -> DTFT:
+    def call(self, dataset: TFDAData) -> TFDAData:
         """Call the transform."""
-        data_dict = data_dict.copy()
 
-        data_dict[self.data_key] = tf.gather(data, self.channels, axis=1)
-        return data_dict
+        return dataset.new_data(
+            tf.gather(dataset.data, self.channels, axis=1)
+        )
 
 
 class SegChannelSelectionTransform(TFDABase):
@@ -74,10 +74,9 @@ class SegChannelSelectionTransform(TFDABase):
         self.keep_discarded = keep_discarded
 
     @tf.function(experimental_follow_type_hints=True)
-    def call(self, data_dict: DTFT) -> DTFT:
+    def call(self, dataset: TFDAData) -> TFDAData:
         """Call the transform."""
-        data_dict = data_dict.copy()
-        seg = data_dict.get(self.label_key, nan)
+        seg = dataset.seg
 
         if tf.math.reduce_any(tf.math.is_nan(seg)):
             tf.get_logger().warn(
@@ -85,11 +84,12 @@ class SegChannelSelectionTransform(TFDABase):
                 "there is no 'seg' key in your data_dict, returning "
                 "data_dict unmodified",
             )
+            seg = seg
         else:
             # TODO: keep_discarded
 
-            data_dict[self.label_key] = tf.gather(seg, self.channels, axis=1)
-        return data_dict
+            seg = tf.gather(seg, self.channels, axis=1)
+        return TFDAData(dataset.data, seg)
 
 
 if __name__ == "__main__":
@@ -113,5 +113,9 @@ if __name__ == "__main__":
         # tf.print(dcst(dict(data=dataset))["data"].shape)
 
         scst = SegChannelSelectionTransform(tf.cast([0, 1], tf.int64))
-        tf.print(scst(dict(seg=dataset))["seg"].shape)
-        tf.print(SegChannelSelectionTransform(tf.cast([0], tf.int64))(dict(seg=dataset))["seg"].shape)
+        tf.print(scst(TFDAData(seg=dataset))["seg"].shape)
+        tf.print(
+            SegChannelSelectionTransform(tf.cast([0], tf.int64))(
+                TFDAData(seg=dataset)
+            )["seg"].shape
+        )
