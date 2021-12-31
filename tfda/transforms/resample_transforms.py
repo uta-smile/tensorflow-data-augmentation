@@ -148,7 +148,7 @@ def augment_linear_downsampling_scipy(
             ):  # ignore_axes = 0
                 for i in tf.range(dim):
                     condition = tf.math.reduce_any(
-                        ignore_axes == i
+                        ignore_axes == tf.cast(i, tf.float32)
                     )
                     case_true = shp[i]
                     case_false = target_shape[i]

@@ -112,7 +112,7 @@ class TFDADefs(tf.experimental.ExtensionType):
 class TFDADefault3DParams(tf.experimental.ExtensionType):
     """TFDA default 3D augmentation params."""
 
-    patch_size_for_spatial_transform: tf.Tensor = tf.reshape(nan, (-1, 1))
+    patch_size_for_spatial_transform: tf.Tensor = tf.fill([3], nan)
     selected_data_channels: tf.Tensor = tf.reshape(nan, (-1, 1))
     selected_seg_channels: tf.Tensor = tf.reshape(nan, (-1, 1))
     do_elastic: tf.Tensor = True

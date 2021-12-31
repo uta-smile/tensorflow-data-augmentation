@@ -1,8 +1,8 @@
 import tensorflow as tf
 
 # Local
-from tfda.base import DTFT, TFDABase
-from tfda.defs import TFDAData
+from tfda.base import TFDABase
+from tfda.defs import TFDAData, DTFT
 
 
 class Convert3DTo2DTransform(TFDABase):

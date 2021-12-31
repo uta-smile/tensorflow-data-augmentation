@@ -45,7 +45,7 @@ from tfda.augmentations.color_augmentations import (
     augment_contrast,
     augment_gamma
 )
-from tfda.base import DTFT, TFDABase
+from tfda.base import TFDABase
 from tfda.defs import TFbF, TFDAData
 from tfda.utils import to_tf_bool, to_tf_float
 
