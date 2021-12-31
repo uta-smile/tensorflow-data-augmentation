@@ -47,7 +47,7 @@ from tfda.augmentations.spatial_transformations import (
     augment_mirroring,
     augment_spatial
 )
-from tfda.base import DTFT, TFDABase
+from tfda.base import TFDABase
 from tfda.defs import TFDAData, TFbF, TFbT, nan, pi
 
 
