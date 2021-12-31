@@ -125,11 +125,7 @@ class TFDADefault3DParams(tf.experimental.ExtensionType):
     additive_brightness_p_per_channel: tf.Tensor = (0.5,)
     additive_brightness_mu: tf.Tensor = (0.0,)
     additive_brightness_sigma: tf.Tensor = (0.1,)
-    num_threads: tf.Tensor = (
-        12
-        if "nnUNet_n_proc_DA" not in os.environ
-        else int(os.environ["nnUNet_n_proc_DA"]),
-    )
+    num_threads: tf.Tensor = int(os.getenv("nnUNet_n_proc_DA", 12))
     num_cached_per_thread: tf.Tensor = (1,)
 
     @tf.function(experimental_follow_type_hints=True)
