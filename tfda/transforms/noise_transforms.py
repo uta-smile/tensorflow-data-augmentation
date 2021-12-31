@@ -47,7 +47,7 @@ from tfda.augmentations.noise_augmentations import (
     augment_gaussian_blur,
     augment_gaussian_noise
 )
-from tfda.base import DTFT, TFDABase
+from tfda.base import TFDABase
 from tfda.defs import TFbF, TFbT, TFDAData
 
 
