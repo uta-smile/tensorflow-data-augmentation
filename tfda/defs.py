@@ -43,7 +43,7 @@ import os
 import tensorflow as tf
 
 # Types
-from typing import Dict, Iterable, Sequence, Tuple, TypeVar, Union
+from typing import Dict, Iterable, Sequence, TypeVar, Union
 
 DTFT = Dict[str, tf.Tensor]
 T = TypeVar("T")
@@ -68,8 +68,8 @@ class TFDAData(tf.experimental.ExtensionType):
 class TFDADefs(tf.experimental.ExtensionType):
     """TFDA transform defaults params."""
 
-    data_key: tf.Tensor = "data"
-    label_key: tf.Tensor = "seg"
+    data_key: str = "data"
+    label_key: str = "seg"
     p_per_sample: tf.Tensor = 1.0
     p_per_channel: tf.Tensor = 1.0
     per_channel: tf.Tensor = False
