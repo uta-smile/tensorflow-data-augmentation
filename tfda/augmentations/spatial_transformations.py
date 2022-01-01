@@ -304,12 +304,11 @@ def augment_spatial(
         return sample_id, patch_size, data, seg, data_result, seg_result
 
     # spatial augment main body
-    if not isinstance(patch_size, tf.Tensor):
-        patch_size = tf.convert_to_tensor(patch_size)
-    if not isinstance(patch_center_dist_from_border, tf.Tensor):
-        patch_center_dist_from_border = tf.convert_to_tensor(
-            patch_center_dist_from_border, dtype=tf.float32
-        )
+    patch_size = tf.convert_to_tensor(patch_size)
+
+    patch_center_dist_from_border = tf.convert_to_tensor(
+        patch_center_dist_from_border, dtype=tf.float32
+    )
     patch_size = tf.cast(patch_size, tf.int64)
     cond_to_loop = lambda sample_id, patch_size, data, seg, data_result, seg_result: tf.less(
         sample_id, sample_num
