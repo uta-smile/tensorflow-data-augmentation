@@ -45,7 +45,7 @@ from typing import Optional, Tuple
 # tf.debugging.set_log_device_placement(True)
 from tfda.augmentations.noise_augmentations import (
     augment_gaussian_blur,
-    augment_gaussian_noise
+    augment_gaussian_noise,
 )
 from tfda.base import TFDABase
 from tfda.defs import TFbF, TFbT, TFDAData
@@ -69,19 +69,21 @@ class GaussianNoiseTransform(TFDABase):
     @tf.function(experimental_follow_type_hints=True)
     def call(self, dataset: TFDAData) -> TFDAData:
         """Call the transform."""
-        return dataset.new_data(tf.map_fn(
-            lambda x: tf.cond(
-                tf.random.uniform(()) < self.defs.p_per_sample,
-                lambda: augment_gaussian_noise(
-                    x,
-                    self.defs.noise_variance,
-                    self.defs.p_per_channel,
-                    self.defs.per_channel,
+        return dataset.new_data(
+            tf.map_fn(
+                lambda x: tf.cond(
+                    tf.random.uniform(()) < self.defs.p_per_sample,
+                    lambda: augment_gaussian_noise(
+                        x,
+                        self.defs.noise_variance,
+                        self.defs.p_per_channel,
+                        self.defs.per_channel,
+                    ),
+                    lambda: x,
                 ),
-                lambda: x,
-            ),
-            dataset.data,
-        ))
+                dataset.data,
+            )
+        )
 
 
 class GaussianBlurTransform(TFDABase):
@@ -90,27 +92,33 @@ class GaussianBlurTransform(TFDABase):
         blur_sigma: tf.Tensor = (1.0, 5.0),
         different_sigma_per_channel: tf.Tensor = True,
         different_sigma_per_axis: tf.Tensor = False,
-            **kws,
+        **kws,
     ) -> None:
-        super().__init__(blur_sigma=blur_sigma, per_channel=different_sigma_per_channel, **kws)
+        super().__init__(
+            blur_sigma=blur_sigma,
+            per_channel=different_sigma_per_channel,
+            **kws,
+        )
         self.different_sigma_per_axis = different_sigma_per_axis
 
     @tf.function(experimental_follow_type_hints=True)
     def call(self, dataset: TFDAData) -> TFDAData:
         """Call the transform."""
-        return dataset.new_data(tf.map_fn(
-            lambda x: tf.cond(
-                tf.less(tf.random.uniform(()), self.defs.p_per_sample),
-                lambda: augment_gaussian_blur(
-                    x,
-                    self.defs.blur_sigma,
-                    self.defs.per_channel,
-                    self.defs.p_per_channel,
+        return dataset.new_data(
+            tf.map_fn(
+                lambda x: tf.cond(
+                    tf.less(tf.random.uniform(()), self.defs.p_per_sample),
+                    lambda: augment_gaussian_blur(
+                        x,
+                        self.defs.blur_sigma,
+                        self.defs.per_channel,
+                        self.defs.p_per_channel,
+                    ),
+                    lambda: x,
                 ),
-                lambda: x,
-            ),
-            dataset.data
-        ))
+                dataset.data,
+            )
+        )
 
 
 if __name__ == "__main__":

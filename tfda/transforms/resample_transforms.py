@@ -41,23 +41,25 @@ class SimulateLowResolutionTransform(TFDABase):
     @tf.function(experimental_follow_type_hints=True)
     def call(self, dataset: TFDAData) -> TFDAData:
         """Call the transform."""
-        return dataset.new_data(tf.map_fn(
-            lambda xs: tf.cond(
-                tf.random.uniform(()) < self.defs.p_per_sample,
-                lambda: augment_linear_downsampling_scipy(
-                    xs,
-                    zoom_range=self.defs.zoom_range,
-                    per_channel=self.defs.per_channel,
-                    p_per_channel=self.defs.p_per_channel,
-                    channels=self.channels,
-                    order_downsample=self.defs.order_downsample,
-                    order_upsample=self.defs.order_upsample,
-                    ignore_axes=self.defs.ignore_axes,
+        return dataset.new_data(
+            tf.map_fn(
+                lambda xs: tf.cond(
+                    tf.random.uniform(()) < self.defs.p_per_sample,
+                    lambda: augment_linear_downsampling_scipy(
+                        xs,
+                        zoom_range=self.defs.zoom_range,
+                        per_channel=self.defs.per_channel,
+                        p_per_channel=self.defs.p_per_channel,
+                        channels=self.channels,
+                        order_downsample=self.defs.order_downsample,
+                        order_upsample=self.defs.order_upsample,
+                        ignore_axes=self.defs.ignore_axes,
+                    ),
+                    lambda: xs,
                 ),
-                lambda: xs,
-            ),
-            dataset.data
-        ))
+                dataset.data,
+            )
+        )
 
 
 @tf.function

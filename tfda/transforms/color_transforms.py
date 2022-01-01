@@ -43,7 +43,7 @@ from tfda.augmentations.color_augmentations import (
     augment_brightness_additive,
     augment_brightness_multiplicative,
     augment_contrast,
-    augment_gamma
+    augment_gamma,
 )
 from tfda.base import TFDABase
 from tfda.defs import TFbF, TFDAData
@@ -213,7 +213,11 @@ if __name__ == "__main__":
 
     ts = Compose(
         [
-            tf.keras.layers.Input(type_spec=TFDAData.Spec(None, tf.TensorSpec(None), tf.TensorSpec(None))),
+            tf.keras.layers.Input(
+                type_spec=TFDAData.Spec(
+                    None, tf.TensorSpec(None), tf.TensorSpec(None)
+                )
+            ),
             ContrastAugmentationTransform(),
             BrightnessTransform(0, 0.1),
             BrightnessMultiplicativeTransform(

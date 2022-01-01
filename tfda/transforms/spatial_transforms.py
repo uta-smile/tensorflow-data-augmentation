@@ -45,7 +45,7 @@ from typing import Tuple
 # tf.debugging.set_log_device_placement(True)
 from tfda.augmentations.spatial_transformations import (
     augment_mirroring,
-    augment_spatial
+    augment_spatial,
 )
 from tfda.base import TFDABase
 from tfda.defs import TFDAData, TFbF, TFbT, nan, pi
@@ -85,7 +85,9 @@ class SpatialTransform(TFDABase):
     ) -> None:
         super().__init__(**kws)
         self.patch_size = tf.convert_to_tensor(patch_size)
-        self.patch_center_dist_from_border = tf.convert_to_tensor(patch_center_dist_from_border)
+        self.patch_center_dist_from_border = tf.convert_to_tensor(
+            patch_center_dist_from_border
+        )
         self.do_elastic_deform = tf.convert_to_tensor(do_elastic_deform)
         self.alpha = tf.convert_to_tensor(alpha)
         self.sigma = tf.convert_to_tensor(sigma)
@@ -107,9 +109,13 @@ class SpatialTransform(TFDABase):
         self.p_el_per_sample = tf.convert_to_tensor(p_el_per_sample)
         self.p_scale_per_sample = tf.convert_to_tensor(p_scale_per_sample)
         self.p_rot_per_sample = tf.convert_to_tensor(p_rot_per_sample)
-        self.independent_scale_for_each_axis = tf.convert_to_tensor(independent_scale_for_each_axis)
+        self.independent_scale_for_each_axis = tf.convert_to_tensor(
+            independent_scale_for_each_axis
+        )
         self.p_rot_per_axis = tf.convert_to_tensor(p_rot_per_axis)
-        self.p_independent_scale_per_axis = tf.convert_to_tensor(p_independent_scale_per_axis)
+        self.p_independent_scale_per_axis = tf.convert_to_tensor(
+            p_independent_scale_per_axis
+        )
 
     @tf.function(experimental_follow_type_hints=True)
     def call(self, dataset: TFDAData) -> TFDAData:
@@ -158,7 +164,7 @@ class SpatialTransform(TFDABase):
         )
 
         data = ret_val[0]
-        if isnotnan(seg)):
+        if isnotnan(seg):
             seg = ret_val[1]
         return TFDAData(data, seg)
 
@@ -188,13 +194,13 @@ class MirrorTransform(TFDABase):
         for b in tf.range(tf.shape(data)[0]):
             if tf.random.uniform(()) < self.defs.p_per_sample:
                 sample_seg = nan
-                if isnotnan(seg)):
+                if isnotnan(seg):
                     sample_seg = seg[b]
                 ret_val = augment_mirroring(
                     data[b], sample_seg, axes=self.axes
                 )
                 data_list = data_list.write(b, ret_val[0])
-                if isnotnan(seg)):
+                if isnotnan(seg):
                     seg_list = seg_list.write(b, ret_val[1])
 
         data = data_list.stack()

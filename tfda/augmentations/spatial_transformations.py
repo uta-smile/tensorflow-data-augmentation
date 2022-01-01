@@ -48,13 +48,13 @@ from tfda.augmentations.utils import (
     elastic_deform_coordinates,
     rotate_coords_2d,
     rotate_coords_3d,
-    scale_coords
+    scale_coords,
 )
 from tfda.data_processing_utils import (
     center_crop_fn,
     interpolate_img,
     random_crop_fn,
-    update_tf_channel
+    update_tf_channel,
 )
 from tfda.defs import TFbF, TFbT, nan, pi
 from tfda.utils import isnotnan

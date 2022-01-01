@@ -52,9 +52,7 @@ class DataChannelSelectionTransform(TFDABase):
     def call(self, dataset: TFDAData) -> TFDAData:
         """Call the transform."""
 
-        return dataset.new_data(
-            tf.gather(dataset.data, self.channels, axis=1)
-        )
+        return dataset.new_data(tf.gather(dataset.data, self.channels, axis=1))
 
 
 class SegChannelSelectionTransform(TFDABase):
