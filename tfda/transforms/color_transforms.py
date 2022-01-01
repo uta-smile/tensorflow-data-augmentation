@@ -73,7 +73,7 @@ class ContrastAugmentationTransform(ColorTrans):
         return dataset.new_data(
             tf.map_fn(
                 lambda x: tf.cond(
-                    tf.random.uniform(()) < self.defs.p_per_sample,
+                    tf.less(tf.random.uniform(()), self.defs.p_per_sample),
                     lambda: augment_contrast(
                         x,
                         self.defs.contrast_range,

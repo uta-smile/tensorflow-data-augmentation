@@ -37,6 +37,8 @@ Color Augmentation
 """
 import tensorflow as tf
 
+# tf.config.run_functions_eagerly(True)
+
 
 @tf.function(experimental_follow_type_hints=True)
 def augment_contrast_help(
@@ -67,7 +69,15 @@ def augment_factor_help(
     )
 
 
-@tf.function(experimental_follow_type_hints=True)
+@tf.function(
+    input_signature=[
+        tf.TensorSpec(shape=None, dtype=tf.float32),
+        tf.TensorSpec(shape=(2,), dtype=tf.float32),
+        tf.TensorSpec(shape=(), dtype=tf.bool),
+        tf.TensorSpec(shape=(), dtype=tf.bool),
+        tf.TensorSpec(shape=(), dtype=tf.float32),
+    ]
+)
 def augment_contrast(
     data_sample: tf.Tensor,
     contrast_range: tf.Tensor = (0.75, 1.25),
@@ -76,35 +86,71 @@ def augment_contrast(
     p_per_channel: tf.Tensor = 1.0,
 ) -> tf.Tensor:
     """Augment contrast."""
-    # TODO: callable contrast_range
-    if not per_channel:
-        factor = augment_factor_help(
-            tf.random.uniform(()) < p_per_channel, contrast_range
-        )
-        data_sample = tf.map_fn(
+
+    return tf.cond(
+        tf.logical_not(per_channel),
+        lambda: tf.map_fn(
             lambda x: tf.cond(
-                tf.random.uniform(()) < p_per_channel,
-                lambda: augment_contrast_help(x, preserve_range, factor),
+                tf.less(tf.random.uniform(()), p_per_channel),
+                lambda: augment_contrast_help(
+                    x,
+                    preserve_range,
+                    augment_factor_help(
+                        tf.less(tf.random.uniform(()), p_per_channel),
+                        contrast_range,
+                    ),
+                ),
                 lambda: x,
             ),
             data_sample,
-        )
-
-    else:
-        factor = augment_factor_help(
-            tf.random.uniform(()) < 0.5 and contrast_range[0] < 1,
-            contrast_range,
-        )
-        data_sample = tf.map_fn(
+        ),
+        lambda: tf.map_fn(
             lambda x: tf.cond(
-                tf.random.uniform(()) < p_per_channel,
-                lambda: augment_contrast_help(x, preserve_range, factor),
+                tf.less(tf.random.uniform(()), p_per_channel),
+                lambda: augment_contrast_help(
+                    x,
+                    preserve_range,
+                    augment_factor_help(
+                        tf.logical_and(
+                            tf.less(tf.random.uniform(()), 0.5),
+                            tf.less(contrast_range[0], 1),
+                        ),
+                        contrast_range,
+                    ),
+                ),
                 lambda: x,
             ),
             data_sample,
-        )
+        ),
+    )
 
-    return data_sample
+    # if tf.logical_not(per_channel):
+    #     factor = augment_factor_help(
+    #         tf.less(tf.random.uniform(()), p_per_channel), contrast_range
+    #     )
+    #     data_sample = tf.map_fn(
+    #         lambda x: tf.cond(
+    #             tf.less(tf.random.uniform(()), p_per_channel),
+    #             lambda: augment_contrast_help(x, preserve_range, factor),
+    #             lambda: x,
+    #         ),
+    #         data_sample,
+    #     )
+    # else:
+    #     factor = augment_factor_help(
+    #         _and(tf.less(tf.random.uniform(()), 0.5), tf.less(contrast_range[0], 1)),
+    #         contrast_range,
+    #     )
+    #     data_sample = tf.map_fn(
+    #         lambda x: tf.cond(
+    #             tf.less(tf.random.uniform(()), p_per_channel),
+    #             lambda: augment_contrast_help(x, preserve_range, factor),
+    #             lambda: x,
+    #         ),
+    #         data_sample,
+    #     )
+
+    # return data_sample
 
 
 @tf.function(experimental_follow_type_hints=True)
@@ -232,7 +278,8 @@ def augment_gamma(
     return data_sample
 
 
-if __name__ == "__main__":
+def test():
+    """Test."""
     dataset = (
         tf.data.Dataset.range(10, output_type=tf.float32).batch(5).batch(2)
     )
@@ -246,3 +293,7 @@ if __name__ == "__main__":
         tf.print(augment_contrast(data_sample).shape)
         tf.print(augment_brightness_additive(data_sample, mu, sigma).shape)
         tf.print(augment_brightness_multiplicative(data_sample).shape)
+
+
+if __name__ == "__main__":
+    test()
