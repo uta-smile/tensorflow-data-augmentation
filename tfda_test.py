@@ -38,7 +38,8 @@ TFDA test
 
 import tensorflow as tf
 
-tf.debugging.set_log_device_placement(True)
+tf.config.run_functions_eagerly(True)
+#tf.debugging.set_log_device_placement(True)
 
 # Local
 from tfda.augmentations.utils import to_one_hot
@@ -158,7 +159,7 @@ def test(dataset):
     return TFDAData(data, seg)
 
 
-if __name__ == "__main__":
+def main():
     dataseti = iter(
         tf.data.Dataset.from_tensor_slices(
             tf.random.uniform((32 * 1 * 73 * 80 * 8 * 8,), 0, 100)
@@ -170,9 +171,14 @@ if __name__ == "__main__":
         .batch(8)
         .prefetch(4)
     )
+    dataset = TFDAData(next(dataseti), next(dataseti))
+    strategy = tf.distribute.MirroredStrategy()
+    with strategy.scope():
+        res = test(dataset)
+        tf.print(res)
+    
+    
 
-    with tf.device("/CPU:0"):
 
-        dataset = TFDAData(next(dataseti), next(dataseti))
-
-        tf.print(test(dataset))
+if __name__ == "__main__":
+    main()
