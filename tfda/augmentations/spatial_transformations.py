@@ -57,6 +57,7 @@ from tfda.data_processing_utils import (
     update_tf_channel
 )
 from tfda.defs import TFbF, TFbT, nan, pi
+from tfda.utils import isnotnan
 
 
 def augment_spatial_helper(
@@ -242,7 +243,7 @@ def augment_spatial(
             data_result = update_tf_channel(
                 data_result, sample_id, data_sample
             )
-            if not tf.math.reduce_any(tf.math.is_nan(seg)):
+            if isnotnan(seg):
                 seg_sample = tf.zeros(tf.shape(seg_result)[1:])
                 channel_id = tf.constant(0)
                 cond_to_loop_seg = lambda channel_id, seg_sample: tf.less(
@@ -297,7 +298,7 @@ def augment_spatial(
                 data[sample_id : sample_id + 1], patch_size, s
             )
             data_result = update_tf_channel(data_result, sample_id, d[0])
-            if not tf.math.reduce_any(tf.math.is_nan(seg)):
+            if isnotnan(seg):
                 seg_result = update_tf_channel(seg_result, sample_id, s[0])
         sample_id = sample_id + 1
         return sample_id, patch_size, data, seg, data_result, seg_result
@@ -315,7 +316,7 @@ def augment_spatial(
     )
     dim = tf.cast(tf.shape(patch_size)[0], tf.int64)
     seg_result = nan
-    if not tf.math.reduce_any(tf.math.is_nan(seg)):
+    if isnotnan(seg):
         seg_result = tf.cond(
             tf.equal(dim, tf.constant(2, dtype=tf.int64)),
             lambda: tf.zeros(
@@ -369,16 +370,16 @@ def augment_mirroring(
     #     return sample_data, sample_seg
     if tf.math.reduce_any(axes == 0) and tf.random.uniform(()) < 0.5:
         sample_data = sample_data[:, ::-1]
-        if not tf.reduce_any(tf.math.is_nan(sample_seg)):
+        if isnotnan(sample_seg):
             sample_seg = sample_seg[:, ::-1]
     if tf.math.reduce_any(axes == 0) and tf.random.uniform(()) < 0.5:
         sample_data = sample_data[:, :, ::-1]
-        if not tf.reduce_any(tf.math.is_nan(sample_seg)):
+        if isnotnan(sample_seg):
             sample_seg = sample_seg[:, :, ::-1]
     if tf.math.reduce_any(axes == 0) and tf.rank(sample_data) == 4:
         if tf.random.uniform(()) < 0.5:
             sample_data = sample_data[:, :, :, ::-1]
-            if not tf.reduce_any(tf.math.is_nan(sample_seg)):
+            if isnotnan(sample_seg):
                 sample_seg = sample_seg[:, :, :, ::-1]
     return sample_data, sample_seg
 

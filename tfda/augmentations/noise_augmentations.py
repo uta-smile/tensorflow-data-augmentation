@@ -45,6 +45,7 @@ from typing import Tuple
 # tf.debugging.set_log_device_placement(True)
 from tfda.augmentations.utils import gaussian_filter, get_range_val
 from tfda.defs import nan
+from tfda.utils import isnotnan
 
 
 @tf.function(input_signature=[tf.TensorSpec(shape=(2,), dtype=tf.float32)])
@@ -87,7 +88,7 @@ def augment_gaussian_noise(
                 tf.shape(x),
                 0,
                 tf.cond(
-                    not tf.reduce_any(tf.math.is_nan(variance)),
+                    isnotnan(variance),
                     lambda: variance,
                     lambda: gn_var_fn(noise_variance),
                 ),

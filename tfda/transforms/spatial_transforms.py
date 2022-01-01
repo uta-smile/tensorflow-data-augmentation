@@ -49,6 +49,7 @@ from tfda.augmentations.spatial_transformations import (
 )
 from tfda.base import TFDABase
 from tfda.defs import TFDAData, TFbF, TFbT, nan, pi
+from tfda.utils import isnotnan
 
 
 class SpatialTransform(TFDABase):
@@ -157,7 +158,7 @@ class SpatialTransform(TFDABase):
         )
 
         data = ret_val[0]
-        if not tf.math.reduce_any(tf.math.is_nan(seg)):
+        if isnotnan(seg)):
             seg = ret_val[1]
         return TFDAData(data, seg)
 
@@ -187,13 +188,13 @@ class MirrorTransform(TFDABase):
         for b in tf.range(tf.shape(data)[0]):
             if tf.random.uniform(()) < self.defs.p_per_sample:
                 sample_seg = nan
-                if not tf.math.reduce_any(tf.math.is_nan(seg)):
+                if isnotnan(seg)):
                     sample_seg = seg[b]
                 ret_val = augment_mirroring(
                     data[b], sample_seg, axes=self.axes
                 )
                 data_list = data_list.write(b, ret_val[0])
-                if not tf.math.reduce_any(tf.math.is_nan(seg)):
+                if isnotnan(seg)):
                     seg_list = seg_list.write(b, ret_val[1])
 
         data = data_list.stack()

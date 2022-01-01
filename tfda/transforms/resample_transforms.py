@@ -1,8 +1,10 @@
+from tfda.utils import isnotnan
 import tensorflow as tf
 
 # Local
 from tfda.base import TFDABase
 from tfda.defs import TFDAData, nan
+from tfda.utils import isnotnan
 
 
 class SimulateLowResolutionTransform(TFDABase):
@@ -143,9 +145,7 @@ def augment_linear_downsampling_scipy(
                 tf.float32, size=tf.size(target_shape)
             )
             target_shape_list = target_shape_list.unstack(target_shape)
-            if not tf.math.reduce_any(
-                tf.math.is_nan(tf.cast(ignore_axes, tf.float32))
-            ):  # ignore_axes = 0
+            if isnotnan(tf.cast(ignore_axes, tf.float32)):  # ignore_axes = 0
                 for i in tf.range(dim):
                     condition = tf.math.reduce_any(
                         ignore_axes == tf.cast(i, tf.float32)
