@@ -68,4 +68,4 @@ def isnan(x: tf.Tensor) -> tf.Tensor:
 @tf.function(experimental_follow_type_hints=True)
 def isnotnan(x: tf.Tensor) -> tf.Tensor:
     """Check if there is any nan in it."""
-    return tf.math.reduce_any(not tf.math.is_nan(x))
+    return tf.math.logical_not(tf.math.reduce_any(tf.math.is_nan(x)))
