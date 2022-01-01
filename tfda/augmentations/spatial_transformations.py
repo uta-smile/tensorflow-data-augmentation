@@ -367,19 +367,24 @@ def augment_mirroring(
     #         "[channels, x, y] or [channels, x, y, z]\n"
     #         "return raw")
     #     return sample_data, sample_seg
-    if tf.math.reduce_any(axes == 0) and tf.random.uniform(()) < 0.5:
-        sample_data = sample_data[:, ::-1]
-        if isnotnan(sample_seg):
-            sample_seg = sample_seg[:, ::-1]
-    if tf.math.reduce_any(axes == 0) and tf.random.uniform(()) < 0.5:
-        sample_data = sample_data[:, :, ::-1]
-        if isnotnan(sample_seg):
-            sample_seg = sample_seg[:, :, ::-1]
-    if tf.math.reduce_any(axes == 0) and tf.rank(sample_data) == 4:
-        if tf.random.uniform(()) < 0.5:
-            sample_data = sample_data[:, :, :, ::-1]
-            if isnotnan(sample_seg):
-                sample_seg = sample_seg[:, :, :, ::-1]
+    sample_data, sample_seg = tf.cond(
+        tf.logical_and(tf.reduce_any(tf.equal(axes, 0)), tf.less(tf.random.uniform(()), 0.5)),
+        lambda: (sample_data[:, ::-1], tf.cond(isnotnan(sample_seg), lambda: sample_seg[:, ::-1], lambda: sample_seg)),
+        lambda: (sample_data, sample_seg),
+    )
+
+    sample_data, sample_seg = tf.cond(
+        tf.logical_and(tf.reduce_any(tf.equal(axes, 1)), tf.less(tf.random.uniform(()), 0.5)),
+        lambda: (sample_data[:, :, ::-1], tf.cond(isnotnan(sample_seg), lambda: sample_seg[:, :, ::-1], lambda: sample_seg)),
+        lambda: (sample_data, sample_seg),
+    )
+
+    sample_data, sample_seg = tf.cond(
+        tf.logical_and(tf.logical_and(tf.reduce_any(tf.equal(axes, 2)), tf.equal(tf.rank(sample_data), 4)), tf.less(tf.random.uniform(()), 0.5)),
+        lambda: (sample_data[:, :, ::-1], tf.cond(isnotnan(sample_seg), lambda: sample_seg[:, :, ::-1], lambda: sample_seg)),
+        lambda: (sample_data, sample_seg),
+    )
+
     return sample_data, sample_seg
 
 

@@ -188,25 +188,29 @@ class MirrorTransform(TFDABase):
         data = dataset.data
         seg = dataset.seg
 
-        data_list = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
-        seg_list = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
-
-        for b in tf.range(tf.shape(data)[0]):
-            if tf.random.uniform(()) < self.defs.p_per_sample:
-                sample_seg = nan
-                if isnotnan(seg):
-                    sample_seg = seg[b]
-                ret_val = augment_mirroring(
-                    data[b], sample_seg, axes=self.axes
-                )
-                data_list = data_list.write(b, ret_val[0])
-                if isnotnan(seg):
-                    seg_list = seg_list.write(b, ret_val[1])
-
-        data = data_list.stack()
-        if tf.rank(seg) > 0 and seg_list.size() > 0:
-            seg = seg_list.stack()
-
+        data, nseg = tf.map_fn(
+            lambda i: tf.cond(
+                tf.less(tf.random.uniform(()), self.defs.p_per_sample),
+                lambda: (
+                    lambda ret_val: (
+                        ret_val[0],
+                        tf.cond(
+                            isnotnan(seg), lambda: ret_val[1], lambda: seg[i]
+                        ),
+                    )
+                )(
+                    augment_mirroring(
+                        data[i],
+                        tf.cond(isnotnan(seg), lambda: seg[i], lambda: nan),
+                        axes=self.axes,
+                    )
+                ),
+                lambda: (data[i], seg[i]),
+            ),
+            tf.range(tf.shape(data)[0]),
+            fn_output_signature=(tf.float32, tf.float32),
+        )
+        seg = tf.cond(isnotnan(seg), lambda: nseg, lambda: seg)
         return TFDAData(data, seg)
 
 

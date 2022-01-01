@@ -60,6 +60,7 @@ def gn_var_fn(noise_variance: tf.Tensor) -> tf.Tensor:
 
 
 @tf.function(
+    experimental_follow_type_hints=True,
     input_signature=[
         tf.TensorSpec(shape=None, dtype=tf.float32),
         tf.TensorSpec(shape=(2,), dtype=tf.float32),
@@ -75,7 +76,7 @@ def augment_gaussian_noise(
 ) -> tf.Tensor:
     """Apply gaussian noise on tf Tensor."""
     variance = tf.cond(
-        not per_channel,
+        tf.logical_not(per_channel),
         lambda: gn_var_fn(noise_variance),
         lambda: nan,
     )

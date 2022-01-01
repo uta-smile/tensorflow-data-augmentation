@@ -88,8 +88,7 @@ def get_range_val(value: tf.Tensor, rnd_type: tf.Tensor = "uniform"):
     return tf.case(
         [
             (
-                tf.equal(tf.shape(value)[0], 2)
-                and tf.equal(rnd_type, "uniform"),
+                tf.logical_and(tf.equal(tf.shape(value)[0], 2), tf.equal(rnd_type, "uniform")),
                 lambda: tf.random.uniform(
                     (), minval=value[0], maxval=value[1], dtype=tf.float32
                 ),

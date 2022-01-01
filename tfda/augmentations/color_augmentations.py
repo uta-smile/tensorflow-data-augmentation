@@ -207,21 +207,34 @@ def augment_brightness_multiplicative(
 
 
 @tf.function(experimental_follow_type_hints=True)
+def augment_gamma_help_h(data_sample: tf.Tensor, new_data_sample) -> tf.Tensor:
+    mn = tf.math.reduce_mean(data_sample)
+    sd = tf.math.reduce_std(data_sample)
+
+    data_sample = new_data_sample - tf.math.reduce_mean(new_data_sample)
+    data_sample = data_sample / (tf.math.reduce_std(data_sample) + 1e-8) * sd
+    return data_sample + mn
+
+
+
+@tf.function(experimental_follow_type_hints=True)
 def augment_gamma_help(
     data_sample: tf.Tensor,
     gamma_range: tf.Tensor,
     epsilon: tf.Tensor,
     retain_stats: tf.Tensor,
 ) -> tf.Tensor:
-    if tf.random.uniform(()) < 0.5 and gamma_range[0] < 1:
-        gamma = tf.random.uniform((), minval=gamma_range[0], maxval=1)
-    else:
-        gamma = tf.random.uniform(
+    gamma = tf.cond(
+        tf.logical_and(tf.less(tf.random.uniform(()), 0.5), tf.less(gamma_range[0], 1)),
+        lambda: tf.random.uniform((), minval=gamma_range[0], maxval=1),
+        lambda: tf.random.uniform(
             (), minval=tf.maximum(gamma_range[0], 1), maxval=gamma_range[1]
-        )
-        minm = tf.math.reduce_min(data_sample)
-        rnge = tf.math.reduce_max(data_sample) - minm
-        data_sample = (
+        ),
+    )
+    minm = tf.math.reduce_min(data_sample)
+    rnge = tf.math.reduce_max(data_sample) - minm
+
+    new_data_sample = (
             tf.math.pow(
                 (
                     (data_sample - minm)
@@ -232,17 +245,16 @@ def augment_gamma_help(
             * rnge
             + minm
         )
-    if retain_stats:
-        mn = tf.math.reduce_mean(data_sample)
-        sd = tf.math.reduce_std(data_sample)
-        data_sample = data_sample - tf.math.reduce_mean(data_sample) + mn
-        data_sample = (
-            data_sample / (tf.math.reduce_std(data_sample) + 1e-8) * sd
-        )
-    return data_sample
+
+    return tf.cond(
+        retain_stats,
+        lambda: augment_gamma_help_h(data_sample, new_data_sample),
+        lambda: new_data_sample,
+    )
 
 
 @tf.function(
+    experimental_follow_type_hints=True,
     input_signature=[
         tf.TensorSpec(shape=None, dtype=tf.float32),
         tf.TensorSpec(shape=(2,), dtype=tf.float32),
@@ -260,21 +272,28 @@ def augment_gamma(
     per_channel: tf.Tensor = True,
     retain_stats: tf.Tensor = True,
 ):
-    if invert_image:
-        data_sample = -data_sample
-    if not per_channel:
-        data_sample = augment_gamma_help(
+    data_sample = tf.cond(
+        invert_image,
+        lambda: -data_sample,
+        lambda: data_sample,
+    )
+    data_sample = tf.cond(
+        tf.logical_not(per_channel),
+        lambda: augment_gamma_help(
             data_sample, gamma_range, epsilon, retain_stats
-        )
-    else:
-        data_sample = tf.map_fn(
+        ),
+        lambda: tf.map_fn(
             lambda ds: augment_gamma_help(
                 ds, gamma_range, epsilon, retain_stats
             ),
             data_sample,
         )
-    if invert_image:
-        data_sample = -data_sample
+    )
+    data_sample = tf.cond(
+        invert_image,
+        lambda: -data_sample,
+        lambda: data_sample,
+    )
     return data_sample
 
 
