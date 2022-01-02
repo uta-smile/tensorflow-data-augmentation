@@ -36,13 +36,11 @@ license  : GPL-3.0+
 Noise Transforms
 """
 
+# Tensorflow
 import tensorflow as tf
 
-# Types
-from typing import Optional, Tuple
-
-# Local
-# tf.debugging.set_log_device_placement(True)
+tf.debugging.set_log_device_placement(True)
+# tf.config.run_functions_eagerly(True)
 from tfda.augmentations.noise_augmentations import (
     augment_gaussian_blur,
     augment_gaussian_noise,
@@ -72,7 +70,7 @@ class GaussianNoiseTransform(TFDABase):
         return dataset.new_data(
             tf.map_fn(
                 lambda x: tf.cond(
-                    tf.random.uniform(()) < self.defs.p_per_sample,
+                    tf.less(tf.random.uniform(()), self.defs.p_per_sample),
                     lambda: augment_gaussian_noise(
                         x,
                         self.defs.noise_variance,

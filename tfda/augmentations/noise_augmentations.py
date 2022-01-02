@@ -36,16 +36,13 @@ license  : GPL-3.0+
 Noise Augmentations
 """
 
-import tensorflow as tf
-
-# Types
-from typing import Tuple
-
-# Local
 # tf.debugging.set_log_device_placement(True)
 from tfda.augmentations.utils import gaussian_filter, get_range_val
 from tfda.defs import nan
 from tfda.utils import isnotnan
+
+# Tensorflow
+import tensorflow as tf
 
 
 @tf.function(input_signature=[tf.TensorSpec(shape=(2,), dtype=tf.float32)])
@@ -60,7 +57,6 @@ def gn_var_fn(noise_variance: tf.Tensor) -> tf.Tensor:
 
 
 @tf.function(
-    experimental_follow_type_hints=True,
     input_signature=[
         tf.TensorSpec(shape=None, dtype=tf.float32),
         tf.TensorSpec(shape=(2,), dtype=tf.float32),
@@ -83,7 +79,7 @@ def augment_gaussian_noise(
 
     return tf.map_fn(
         lambda x: tf.cond(
-            tf.random.uniform(()) < p_per_channel,
+            tf.less(tf.random.uniform(()), p_per_channel),
             lambda: x
             + tf.random.normal(
                 tf.shape(x),

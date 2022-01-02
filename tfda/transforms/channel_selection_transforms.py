@@ -35,11 +35,11 @@ license  : GPL-3.0+
 
 Channel Selection Transforms
 """
-import tensorflow as tf
-
-# Local
 from tfda.base import TFDABase
-from tfda.defs import TFDAData, TFbT
+from tfda.defs import TFbT, TFDAData
+
+# Tensorflow
+import tensorflow as tf
 
 
 class DataChannelSelectionTransform(TFDABase):

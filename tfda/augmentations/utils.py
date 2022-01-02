@@ -36,29 +36,28 @@ license  : GPL-3.0+
 Augmentation Utils
 """
 
-import tensorflow as tf
+from tfda.defs import nan
+from tfda.utils import to_tf_float, to_tf_int
 
-# Local
-from tfda.defs import TFbF, TFbT, nan
-from tfda.utils import isnan, to_tf_bool, to_tf_float, to_tf_int
+# Tensorflow
+import tensorflow as tf
 
 # tf.debugging.set_log_device_placement(True)
 
 
 @tf.function(experimental_follow_type_hints=True)
-def to_one_hot(seg: tf.Tensor, all_seg_labels: tf.Tensor = nan):
-    if isnan(all_seg_labels):
-        all_seg_labels, _ = tf.unique(tf.reshape(seg, (-1,)))
+def to_one_hot(seg: tf.Tensor, all_seg_labels: tf.Tensor = nan) -> tf.Tensor:
+    all_seg_labels = tf.cast(all_seg_labels, tf.float32)
 
-    nseg = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
-    for s in tf.range(tf.shape(seg)[0]):
-        result = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
-        for i in tf.range(tf.size(all_seg_labels)):
-            result = result.write(
-                i, tf.where(seg[s] == all_seg_labels[i], 1.0, 0.0)
-            )
-        nseg = nseg.write(s, result.stack())
-    return nseg.stack()
+    return tf.map_fn(
+        lambda s: tf.map_fn(
+            lambda i: tf.where(tf.equal(seg[s], all_seg_labels[i]), 1.0, 0.0),
+            tf.range(tf.size(all_seg_labels)),
+            fn_output_signature=tf.float32,
+        ),
+        tf.range(tf.shape(seg)[0]),
+        fn_output_signature=tf.float32,
+    )
 
 
 @tf.function(experimental_follow_type_hints=True)
@@ -88,7 +87,10 @@ def get_range_val(value: tf.Tensor, rnd_type: tf.Tensor = "uniform"):
     return tf.case(
         [
             (
-                tf.logical_and(tf.equal(tf.shape(value)[0], 2), tf.equal(rnd_type, "uniform")),
+                tf.logical_and(
+                    tf.equal(tf.shape(value)[0], 2),
+                    tf.equal(rnd_type, "uniform"),
+                ),
                 lambda: tf.random.uniform(
                     (), minval=value[0], maxval=value[1], dtype=tf.float32
                 ),
@@ -377,15 +379,15 @@ if __name__ == "__main__":
         #     40,
         # ]
 
-        xs = tf.random.uniform(patch_size, 0, 1)
-        s = xs.shape
-        tf.print(xs.shape)
-        x = gaussian_filter(xs, 5, "reflect")
-        tf.print("\n\n", x[0][0], "\n", x.shape, x[0].shape)
-        x_ = sf.gaussian_filter(xs, 5, mode="reflect")
-        tf.print("----\n", x_[0][0], "\n", x_.shape, x_[0].shape)
+        # xs = tf.random.uniform(patch_size, 0, 1)
+        # s = xs.shape
+        # tf.print(xs.shape)
+        # x = gaussian_filter(xs, 5, "reflect")
+        # tf.print("\n\n", x[0][0], "\n", x.shape, x[0].shape)
+        # x_ = sf.gaussian_filter(xs, 5, mode="reflect")
+        # tf.print("----\n", x_[0][0], "\n", x_.shape, x_[0].shape)
 
-        tf.print("----------")
-        tf.print(rotate_coords_3d(coords, 1.0, 1.0, 1.0).shape)
+        # tf.print("----------")
+        # tf.print(rotate_coords_3d(coords, 1.0, 1.0, 1.0).shape)
 
         tf.print(to_one_hot(tf.zeros([9, 40, 56, 40]), [1.0, 2, 3]).shape)

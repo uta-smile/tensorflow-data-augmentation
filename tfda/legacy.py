@@ -214,7 +214,7 @@
 #             self.batch_size * (tf.cast(1, tf.float64) - self.oversample_foregroung_percent))
 #         )
 
-'''
+"""
 def rotate_coords_3d(coords, angle_x, angle_y, angle_z):
     rot_matrix = tf.eye(len(coords))
     rot_matrix = create_matrix_rotation_x_3d(angle_x, rot_matrix)
@@ -295,9 +295,9 @@ def create_matrix_rotation_2d(angle, matrix=nan):
         return rotation
 
     return tf.matmul(matrix, rotation)
-'''
+"""
 
-'''
+"""
 class_locations = []
 class_locations_len = []
 for c in tf.range(tf.shape(class_locations_bytes[i])[0]):
@@ -311,9 +311,9 @@ for c in tf.range(tf.shape(class_locations_bytes[i])[0]):
     class_locations_len.append(class_locations_shape[i][c])
 class_locations = tf.concat(class_locations, axis=0)
 class_locations_len = tf.convert_to_tensor(class_locations_len)
-'''
+"""
 
-'''
+"""
 foreground_classes = [
     c for c in class_locations.keys() if c != 0
 ]
@@ -339,7 +339,7 @@ else:
             selected_voxel = random_choice(
                 voxels_of_that_class, 0
             )[0]
-'''
+"""
 
 # class TestSpatialTransform(tf.keras.layers.Layer):
 #     def __init__(

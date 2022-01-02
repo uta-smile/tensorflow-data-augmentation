@@ -35,6 +35,7 @@ license  : GPL-3.0+
 
 Utils
 """
+# Tensorflow
 import tensorflow as tf
 
 # Types

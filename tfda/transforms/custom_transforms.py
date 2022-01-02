@@ -1,8 +1,8 @@
-import tensorflow as tf
-
-# Local
 from tfda.base import TFDABase
-from tfda.defs import TFDAData, DTFT
+from tfda.defs import DTFT, TFDAData
+
+# Tensorflow
+import tensorflow as tf
 
 
 class Convert3DTo2DTransform(TFDABase):
@@ -127,7 +127,7 @@ class MaskTransform(TFDABase):
         self,
         dct_for_where_it_was_used: tf.Tensor,
         mask_idx_in_seg: tf.Tensor = 1,
-        set_outside_to: tf.Tensor = 0,
+        set_outside_to: tf.Tensor = 0.0,
         **kws,
     ):
         """
@@ -149,33 +149,35 @@ class MaskTransform(TFDABase):
     def call(self, dataset: TFDAData) -> TFDAData:
         """Call the transform."""
         seg = dataset.seg
-        # if seg is None or seg.shape[1] < self.mask_idx_in_seg:
-        #     raise Warning(
-        #         "mask not found, seg may be missing or seg[:, mask_idx_in_seg] may not exist"
-        #     )
         data = dataset.data
-        data_list = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
-        for b in tf.range(tf.shape(data)[0]):
-            mask = seg[b, self.mask_idx_in_seg]
-            channel_list = tf.TensorArray(
-                tf.float32, size=0, dynamic_size=True
+
+        return dataset.new_data(
+            tf.map_fn(
+                lambda i: (
+                    lambda mask: tf.map_fn(
+                        lambda j: tf.cond(
+                            tf.greater(
+                                tf.size(self.dct_for_where_it_was_used[j]), 0
+                            ),
+                            lambda: tf.where(
+                                tf.less(mask, 0.0),
+                                tf.fill(
+                                    tf.shape(data[i, j]), self.set_outside_to
+                                ),
+                                data[i, j],
+                            ),
+                            lambda: data[i, j],
+                        ),
+                        tf.range(
+                            tf.shape(data)[1],
+                        ),
+                        fn_output_signature=tf.float32,
+                    )
+                )(seg[i, self.mask_idx_in_seg]),
+                tf.range(tf.shape(data)[0]),
+                fn_output_signature=tf.float32,
             )
-            for c in tf.range(tf.shape(data)[1]):
-                if tf.size(self.dct_for_where_it_was_used[c]) > 0:
-                    # data[b, c][mask < 0] = self.set_outside_to
-
-                    condition = tf.less(mask, 0)
-                    case_true = tf.zeros_like(
-                        data[b, c]
-                    )  # self.set_outside_to = 0
-                    case_false = data[b, c]
-                    data_b_c = tf.where(condition, case_true, case_false)
-
-                    channel_list = channel_list.write(c, data_b_c)
-            data_b = channel_list.stack()
-            data_list = data_list.write(b, data_b)
-
-        return dataset.new_data(data_list.stack())
+        )
 
 
 if __name__ == "__main__":
@@ -240,10 +242,11 @@ if __name__ == "__main__":
             data_dict["data"].shape, data_dict["seg"].shape
         )  # (1, 2, 2, 2, 2) (1, 1, 2, 2, 2)
         tf.print(data_dict)
-        data_dict = MaskTransform(
+        mf = MaskTransform(
             tf.constant([[0, 0], [1, 0]]), mask_idx_in_seg=0, set_outside_to=0
-        )(data_dict)
+        )
+        data_dict = mf(data_dict)
         tf.print(
             data_dict["data"].shape, data_dict["seg"].shape
         )  # (1, 2, 2, 2, 2) (1, 1, 2, 2, 2)
-        tf.print(data_dict)
+        tf.print(data_dict.data)

@@ -1,11 +1,11 @@
-import tensorflow as tf
-
-# Others
 from tfda.base import TFDABase
-from tfda.defs import TFDAData, TFbT, nan
+from tfda.defs import TFbT, TFDAData, nan
 from tfda.utils import isnan, isnotnan
 
-tf.config.run_functions_eagerly(True)
+# Tensorflow
+import tensorflow as tf
+
+# tf.config.run_functions_eagerly(True)
 
 
 class SimulateLowResolutionTransform(TFDABase):

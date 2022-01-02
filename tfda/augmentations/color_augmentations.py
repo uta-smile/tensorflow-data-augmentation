@@ -35,6 +35,7 @@ license  : GPL-3.0+
 
 Color Augmentation
 """
+# Tensorflow
 import tensorflow as tf
 
 # tf.config.run_functions_eagerly(True)
@@ -216,7 +217,6 @@ def augment_gamma_help_h(data_sample: tf.Tensor, new_data_sample) -> tf.Tensor:
     return data_sample + mn
 
 
-
 @tf.function(experimental_follow_type_hints=True)
 def augment_gamma_help(
     data_sample: tf.Tensor,
@@ -225,7 +225,9 @@ def augment_gamma_help(
     retain_stats: tf.Tensor,
 ) -> tf.Tensor:
     gamma = tf.cond(
-        tf.logical_and(tf.less(tf.random.uniform(()), 0.5), tf.less(gamma_range[0], 1)),
+        tf.logical_and(
+            tf.less(tf.random.uniform(()), 0.5), tf.less(gamma_range[0], 1)
+        ),
         lambda: tf.random.uniform((), minval=gamma_range[0], maxval=1),
         lambda: tf.random.uniform(
             (), minval=tf.maximum(gamma_range[0], 1), maxval=gamma_range[1]
@@ -235,16 +237,13 @@ def augment_gamma_help(
     rnge = tf.math.reduce_max(data_sample) - minm
 
     new_data_sample = (
-            tf.math.pow(
-                (
-                    (data_sample - minm)
-                    / tf.cast(rnge + epsilon, dtype=tf.float32)
-                ),
-                gamma,
-            )
-            * rnge
-            + minm
+        tf.math.pow(
+            ((data_sample - minm) / tf.cast(rnge + epsilon, dtype=tf.float32)),
+            gamma,
         )
+        * rnge
+        + minm
+    )
 
     return tf.cond(
         retain_stats,
@@ -254,7 +253,6 @@ def augment_gamma_help(
 
 
 @tf.function(
-    experimental_follow_type_hints=True,
     input_signature=[
         tf.TensorSpec(shape=None, dtype=tf.float32),
         tf.TensorSpec(shape=(2,), dtype=tf.float32),
@@ -287,7 +285,7 @@ def augment_gamma(
                 ds, gamma_range, epsilon, retain_stats
             ),
             data_sample,
-        )
+        ),
     )
     data_sample = tf.cond(
         invert_image,

@@ -36,12 +36,6 @@ license  : GPL-3.0+
 spatial transformations
 """
 
-import tensorflow as tf
-
-# Types
-from typing import Optional, Tuple
-
-# Local
 # tf.debugging.set_log_device_placement(True)
 from tfda.augmentations.utils import (
     create_zero_centered_coordinate_mesh,
@@ -58,6 +52,9 @@ from tfda.data_processing_utils import (
 )
 from tfda.defs import TFbF, TFbT, nan, pi
 from tfda.utils import isnotnan
+
+# Tensorflow
+import tensorflow as tf
 
 
 def augment_spatial_helper(
@@ -368,20 +365,53 @@ def augment_mirroring(
     #         "return raw")
     #     return sample_data, sample_seg
     sample_data, sample_seg = tf.cond(
-        tf.logical_and(tf.reduce_any(tf.equal(axes, 0)), tf.less(tf.random.uniform(()), 0.5)),
-        lambda: (sample_data[:, ::-1], tf.cond(isnotnan(sample_seg), lambda: sample_seg[:, ::-1], lambda: sample_seg)),
+        tf.logical_and(
+            tf.reduce_any(tf.equal(axes, 0)),
+            tf.less(tf.random.uniform(()), 0.5),
+        ),
+        lambda: (
+            sample_data[:, ::-1],
+            tf.cond(
+                isnotnan(sample_seg),
+                lambda: sample_seg[:, ::-1],
+                lambda: sample_seg,
+            ),
+        ),
         lambda: (sample_data, sample_seg),
     )
 
     sample_data, sample_seg = tf.cond(
-        tf.logical_and(tf.reduce_any(tf.equal(axes, 1)), tf.less(tf.random.uniform(()), 0.5)),
-        lambda: (sample_data[:, :, ::-1], tf.cond(isnotnan(sample_seg), lambda: sample_seg[:, :, ::-1], lambda: sample_seg)),
+        tf.logical_and(
+            tf.reduce_any(tf.equal(axes, 1)),
+            tf.less(tf.random.uniform(()), 0.5),
+        ),
+        lambda: (
+            sample_data[:, :, ::-1],
+            tf.cond(
+                isnotnan(sample_seg),
+                lambda: sample_seg[:, :, ::-1],
+                lambda: sample_seg,
+            ),
+        ),
         lambda: (sample_data, sample_seg),
     )
 
     sample_data, sample_seg = tf.cond(
-        tf.logical_and(tf.logical_and(tf.reduce_any(tf.equal(axes, 2)), tf.equal(tf.rank(sample_data), 4)), tf.less(tf.random.uniform(()), 0.5)),
-        lambda: (sample_data[:, :, ::-1], tf.cond(isnotnan(sample_seg), lambda: sample_seg[:, :, ::-1], lambda: sample_seg)),
+        tf.logical_and(
+            tf.logical_and(
+                tf.reduce_any(tf.equal(axes, 2)),
+                tf.equal(tf.rank(sample_data), 4),
+            ),
+            tf.less(tf.random.uniform(()), 0.5),
+        ),
+        lambda: (
+            sample_data[:, :, ::-1],
+            tf.cond(
+                isnotnan(sample_seg),
+                lambda: sample_seg[:, :, ::-1],
+                lambda: sample_seg,
+            ),
+        ),
         lambda: (sample_data, sample_seg),
     )
 
