@@ -36,12 +36,16 @@ license  : GPL-3.0+
 TFDA test
 """
 
+# Tensorflow
 import tensorflow as tf
 
-tf.config.run_functions_eagerly(True)
-#tf.debugging.set_log_device_placement(True)
+# Others
+from tqdm import tqdm
 
-# Local
+tf.config.run_functions_eagerly(True)
+# tf.debugging.set_log_device_placement(True)
+# tf.config.set_visible_devices([], 'GPU')
+
 from tfda.augmentations.utils import to_one_hot
 from tfda.base import Compose
 from tfda.defs import TFDAData, TFDADefault3DParams, nan, pi
@@ -84,7 +88,19 @@ params = TFDADefault3DParams(
 )
 
 
-def test(dataset):
+def all_da():
+    dataseti = iter(
+        tf.data.Dataset.from_tensor_slices(
+            tf.random.uniform((100 * 8 * 1 * 73 * 80 * 8 * 8,), 0, 100)
+        )
+        .batch(64)
+        .batch(80)
+        .batch(73)
+        .batch(1)
+        .batch(8)
+        .prefetch(tf.data.AUTOTUNE)
+    )
+
     da = Compose(
         [
             tf.keras.layers.Input(
@@ -92,31 +108,31 @@ def test(dataset):
                     None, tf.TensorSpec(None), tf.TensorSpec(None)
                 )
             ),
-            SpatialTransform(
-                patch_size=params.patch_size_for_spatial_transform,
-                patch_center_dist_from_border=nan,
-                do_elastic_deform=params.do_elastic,
-                alpha=params.elastic_deform_alpha,
-                sigma=params.elastic_deform_sigma,
-                do_rotation=params.do_rotation,
-                angle_x=params.rotation_x,
-                angle_y=params.rotation_y,
-                angle_z=params.rotation_z,
-                p_rot_per_axis=params.rotation_p_per_axis,
-                do_scale=params.do_scaling,
-                scale=params.scale_range,
-                border_mode_data=params.border_mode_data,
-                border_cval_data=0.0,
-                order_data=3.0,
-                border_mode_seg="constant",
-                border_cval_seg=-1.0,
-                order_seg=1.0,
-                random_crop=params.random_crop,
-                p_el_per_sample=params.p_eldef,
-                p_scale_per_sample=params.p_scale,
-                p_rot_per_sample=params.p_rot,
-                independent_scale_for_each_axis=params.independent_scale_factor_for_each_axis,
-            ),
+            # SpatialTransform(
+            #     patch_size=params.patch_size_for_spatial_transform,
+            #     patch_center_dist_from_border=nan,
+            #     do_elastic_deform=params.do_elastic,
+            #     alpha=params.elastic_deform_alpha,
+            #     sigma=params.elastic_deform_sigma,
+            #     do_rotation=params.do_rotation,
+            #     angle_x=params.rotation_x,
+            #     angle_y=params.rotation_y,
+            #     angle_z=params.rotation_z,
+            #     p_rot_per_axis=params.rotation_p_per_axis,
+            #     do_scale=params.do_scaling,
+            #     scale=params.scale_range,
+            #     border_mode_data=params.border_mode_data,
+            #     border_cval_data=0.0,
+            #     order_data=3.0,
+            #     border_mode_seg="constant",
+            #     border_cval_seg=-1.0,
+            #     order_seg=1.0,
+            #     random_crop=params.random_crop,
+            #     p_el_per_sample=params.p_eldef,
+            #     p_scale_per_sample=params.p_scale,
+            #     p_rot_per_sample=params.p_rot,
+            #     independent_scale_for_each_axis=params.independent_scale_factor_for_each_axis,
+            # ),
             GaussianNoiseTransform(p_per_channel=0.01),
             GaussianBlurTransform(
                 (0.5, 1.0),
@@ -144,41 +160,38 @@ def test(dataset):
             ),
             MirrorTransform((0, 1, 2)),
             MaskTransform(
-                tf.constant([[0, 0]]), mask_idx_in_seg=0, set_outside_to=0
+                tf.constant([[0, 0]]), mask_idx_in_seg=0, set_outside_to=0.0
             ),
             RemoveLabelTransform(-1, 0),
         ]
     )
     da.compile()
     da.summary()
-    data_dict = da(dataset)
+    res = []
+    for dataset in tqdm(dataseti, desc="steps:"):
+        data_dict = da(TFDAData(dataset, dataset))
+        seg = to_one_hot(data_dict.seg[:, 0], [0, 1, 2])
+        data = tf.transpose(data_dict.data, (0, 2, 3, 4, 1))
+        seg = tf.transpose(seg, (0, 2, 3, 4, 1))
+        res.append(TFDAData(data, seg))
 
-    seg = to_one_hot(data_dict.seg[:, 0], [0, 1, 2])
-    data = tf.transpose(data_dict.data, (0, 2, 3, 4, 1))
-    seg = tf.transpose(seg, (0, 2, 3, 4, 1))
-    return TFDAData(data, seg)
+    assert len(res) == 100
+    for r in res:
+        assert r.shape[0] == 8
+        assert r.shape[1] == 1
+        assert r.shape[2] == 73
+        assert r.shape[3] == 80
+        assert r.shape[4] == 64
+    return res
 
 
-def main():
-    dataseti = iter(
-        tf.data.Dataset.from_tensor_slices(
-            tf.random.uniform((32 * 1 * 73 * 80 * 8 * 8,), 0, 100)
-        )
-        .batch(64)
-        .batch(80)
-        .batch(73)
-        .batch(2)
-        .batch(8)
-        .prefetch(4)
-    )
-    dataset = TFDAData(next(dataseti), next(dataseti))
-    strategy = tf.distribute.MirroredStrategy()
-    with strategy.scope():
-        res = test(dataset)
-        tf.print(res)
-    
-    
+def test():
+    # strategy = tf.distribute.MirroredStrategy()
+    # with strategy.scope():
+    # with tf.device("/CPU:0"):
+    res = all_da()
+    # import pdb;pdb.set_trace()
 
 
 if __name__ == "__main__":
-    main()
+    test()
