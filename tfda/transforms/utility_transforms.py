@@ -1,9 +1,8 @@
-from tfda.defs import TFDAData
-import tensorflow as tf
-
-# Local
 from tfda.base import TFDABase
-from tfda.defs import DTFT
+from tfda.defs import DTFT, TFDAData
+
+# Tensorflow
+import tensorflow as tf
 
 
 class RemoveLabelTransform(TFDABase):

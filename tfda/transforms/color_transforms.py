@@ -35,9 +35,6 @@ license  : GPL-3.0+
 
 Color Transforms
 """
-import tensorflow as tf
-
-# Local
 # tf.debugging.set_log_device_placement(True)
 from tfda.augmentations.color_augmentations import (
     augment_brightness_additive,
@@ -48,6 +45,9 @@ from tfda.augmentations.color_augmentations import (
 from tfda.base import TFDABase
 from tfda.defs import TFbF, TFDAData
 from tfda.utils import to_tf_bool, to_tf_float
+
+# Tensorflow
+import tensorflow as tf
 
 
 class ColorTrans(TFDABase):
@@ -73,7 +73,7 @@ class ContrastAugmentationTransform(ColorTrans):
         return dataset.new_data(
             tf.map_fn(
                 lambda x: tf.cond(
-                    tf.random.uniform(()) < self.defs.p_per_sample,
+                    tf.less(tf.random.uniform(()), self.defs.p_per_sample),
                     lambda: augment_contrast(
                         x,
                         self.defs.contrast_range,
@@ -208,7 +208,6 @@ if __name__ == "__main__":
 
     data_sample = next(iter(dataset))
 
-    # Local
     from tfda.base import Compose
 
     ts = Compose(

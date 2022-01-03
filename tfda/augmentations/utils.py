@@ -36,60 +36,45 @@ license  : GPL-3.0+
 Augmentation Utils
 """
 
-import tensorflow as tf
+from tfda.defs import nan
+from tfda.utils import to_tf_float, to_tf_int
 
-# Local
-from tfda.defs import TFbF, TFbT, nan
-from tfda.utils import isnan, to_tf_bool, to_tf_float, to_tf_int
+# Tensorflow
+import tensorflow as tf
 
 # tf.debugging.set_log_device_placement(True)
 
 
 @tf.function(experimental_follow_type_hints=True)
-def to_one_hot(seg: tf.Tensor, all_seg_labels: tf.Tensor = nan):
-    if isnan(all_seg_labels):
-        all_seg_labels, _ = tf.unique(tf.reshape(seg, (-1,)))
+def to_one_hot(seg: tf.Tensor, all_seg_labels: tf.Tensor = nan) -> tf.Tensor:
+    all_seg_labels = tf.cast(all_seg_labels, tf.float32)
 
-    nseg = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
-    for s in tf.range(tf.shape(seg)[0]):
-        result = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
-        for i in tf.range(tf.size(all_seg_labels)):
-            result = result.write(
-                i, tf.where(seg[s] == all_seg_labels[i], 1.0, 0.0)
-            )
-        nseg = nseg.write(s, result.stack())
-    return nseg.stack()
+    return tf.map_fn(
+        lambda s: tf.map_fn(
+            lambda i: tf.where(tf.equal(seg[s], all_seg_labels[i]), 1.0, 0.0),
+            tf.range(tf.size(all_seg_labels)),
+            fn_output_signature=tf.float32,
+        ),
+        tf.range(tf.shape(seg)[0]),
+        fn_output_signature=tf.float32,
+    )
 
 
-@tf.function(experimental_follow_type_hints=True)
+@tf.function(
+    input_signature=[
+        tf.TensorSpec(shape=(2,), dtype=tf.float32),
+        tf.TensorSpec(shape=(), dtype=tf.string),
+    ]
+)
 def get_range_val(value: tf.Tensor, rnd_type: tf.Tensor = "uniform"):
     # TODO: different rank values
-
-    # return tf.case(
-    #     [
-    #         (tf.equal(tf.rank(value), 0), lambda: value),
-    #         (tf.equal(tf.shape(value)[0], 1), lambda: value[0]),
-    #         (tf.equal(value[0], value[1]), lambda: value[0]),
-    #         (
-    #             tf.equal(tf.shape(value)[0], 2) and tf.equal(rnd_type, "uniform"),
-    #             lambda: tf.random.uniform(
-    #                 (), minval=value[0], maxval=value[1], dtype=tf.float32
-    #             ),
-    #         ),
-    #         (
-    #             tf.equal(rnd_type, "normal"),
-    #             lambda: tf.random.normal(
-    #                 (), mean=value[0], stddev=value[1], dtype=tf.float32
-    #             ),
-    #         ),
-    #     ],
-    #     (lambda: value)
-    # )
     return tf.case(
         [
             (
-                tf.equal(tf.shape(value)[0], 2)
-                and tf.equal(rnd_type, "uniform"),
+                tf.logical_and(
+                    tf.equal(tf.shape(value)[0], 2),
+                    tf.equal(rnd_type, "uniform"),
+                ),
                 lambda: tf.random.uniform(
                     (), minval=value[0], maxval=value[1], dtype=tf.float32
                 ),
@@ -140,7 +125,7 @@ def elastic_deform_coordinates(
             lambda _: gaussian_filter(
                 (tf.random.uniform(tf.shape(coordinates)[1:]) * 2 - 1),
                 sigma,
-                mode="constant",
+                mode=1,
             )
             * alpha,
             tf.range(tf.shape(coordinates)[0], dtype=tf.float32),
@@ -251,7 +236,13 @@ def scale_coords(coords: tf.Tensor, scale: tf.Tensor) -> tf.Tensor:
 
 
 # Gaussian filter related
-@tf.function(experimental_follow_type_hints=True)
+@tf.function(
+    autograph=False,
+    input_signature=[
+        tf.TensorSpec(shape=(), dtype=tf.float32),
+        tf.TensorSpec(shape=(), dtype=tf.int64),
+    ]
+)
 def gaussian_kernel1d(sigma: tf.Tensor, radius: tf.Tensor) -> tf.Tensor:
     x = tf.range(-radius, radius + 1, dtype=tf.float32)
     phi = tf.exp(-0.5 / (sigma * sigma) * x ** 2)
@@ -271,9 +262,12 @@ def gf_pad(
     for the VALID, width = (pin_w - k_w + 1) / stride(1) = in_w
     padding size = pin_w - in_w = k_w - 1
     Left geq Right
+
+    mode 0: reflect
+    mode 1: constant
     """
     pv = tf.cond(
-        tf.equal(mode, "reflect"),
+        tf.equal(mode, 0),
         lambda: x,
         lambda: tf.zeros(ins) + cval,
     )
@@ -295,6 +289,11 @@ def gaussian_filter1d(
     mode: tf.Tensor,
     cval: tf.Tensor = 0.0,
 ):
+    """Gaussian filter batched 1D.
+
+    mode 0: reflect padding;
+    mode 1: reflect padding.
+    """
     sigma = tf.cast(sigma, tf.float32)
     lw = tf.cast(sigma * sigma + 0.5, tf.int64)
     weights = gaussian_kernel1d(sigma, lw)[::-1]
@@ -320,44 +319,26 @@ def gaussian_filter1d(
     return tf.squeeze(tf.nn.conv1d(xs, kernel, stride=1, padding="VALID"))
 
 
-@tf.function(experimental_follow_type_hints=True)
+@tf.function(experimental_follow_type_hints=True, jit_compile=False)
 def gaussian_filter(
     xxs: tf.Tensor,
     sigma: tf.Tensor,
-    mode: tf.Tensor = "reflect",
+    mode: tf.Tensor = 0,
     cval: tf.Tensor = 0.0,
 ) -> tf.Tensor:
     """Gaussian filter trans from scipy gaussian filter.
 
+    mode 0: reflect padding.
+    mode 1: constant padding.
+
     NOTE: only for 3 dim Tensor.
+    NOTE: jit false due to dynamic radius in kernel
     """
+    xxs = tf.transpose(tf.map_fn(lambda xs: gaussian_filter1d(xs, sigma, mode, cval), tf.transpose(xxs, [2, 1, 0])), [2, 1, 0])
+    xxs = tf.transpose(tf.map_fn(lambda xs: gaussian_filter1d(xs, sigma, mode, cval), tf.transpose(xxs, [2, 0, 1])), [1, 2, 0])
+    return tf.transpose(tf.map_fn(lambda xs: gaussian_filter1d(xs, sigma, mode, cval), tf.transpose(xxs, [1, 0, 2])), [1, 0, 2])
 
-    # NOTE: useless in tf
-    # orders = tf.zeros(input.ndim)
-    # sigmas = tf.repeat(sigma, input.ndim)
-    # modes = tf.repeat(tf.cast(mode, tf.string), input.ndim)
-    # output = tf.zeros(input.shape, dtype=tf.float32)
-    # axes = tf.range(input.shape[0])
 
-    # trans = tf.cast([[0, 1, 2], [2, 1, 0], [0, 2, 1]], tf.int64)
-
-    perms = tf.constant([[2, 1, 0], [2, 0, 1], [1, 0, 2]])
-    rperms = tf.constant([[2, 1, 0], [1, 2, 0], [1, 0, 2]])
-
-    return tf.foldl(
-        lambda gfa, idx: tf.reshape(
-            tf.transpose(
-                tf.map_fn(
-                    lambda xs: gaussian_filter1d(xs, sigma, mode, cval),
-                    tf.transpose(gfa, perms[idx]),
-                ),
-                rperms[idx],
-            ),
-            tf.shape(xxs),
-        ),
-        tf.range(3),
-        xxs,
-    )
 
 
 if __name__ == "__main__":
@@ -378,15 +359,15 @@ if __name__ == "__main__":
         #     40,
         # ]
 
-        xs = tf.random.uniform(patch_size, 0, 1)
-        s = xs.shape
-        tf.print(xs.shape)
-        x = gaussian_filter(xs, 5, "reflect")
-        tf.print("\n\n", x[0][0], "\n", x.shape, x[0].shape)
-        x_ = sf.gaussian_filter(xs, 5, mode="reflect")
-        tf.print("----\n", x_[0][0], "\n", x_.shape, x_[0].shape)
+        # xs = tf.random.uniform(patch_size, 0, 1)
+        # s = xs.shape
+        # tf.print(xs.shape)
+        # x = gaussian_filter(xs, 5, "reflect")
+        # tf.print("\n\n", x[0][0], "\n", x.shape, x[0].shape)
+        # x_ = sf.gaussian_filter(xs, 5, mode="reflect")
+        # tf.print("----\n", x_[0][0], "\n", x_.shape, x_[0].shape)
 
-        tf.print("----------")
-        tf.print(rotate_coords_3d(coords, 1.0, 1.0, 1.0).shape)
+        # tf.print("----------")
+        # tf.print(rotate_coords_3d(coords, 1.0, 1.0, 1.0).shape)
 
         tf.print(to_one_hot(tf.zeros([9, 40, 56, 40]), [1.0, 2, 3]).shape)

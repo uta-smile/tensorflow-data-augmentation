@@ -1,10 +1,11 @@
-from tfda.utils import isnotnan
+from tfda.base import TFDABase
+from tfda.defs import TFbT, TFDAData, nan
+from tfda.utils import isnan, isnotnan
+
+# Tensorflow
 import tensorflow as tf
 
-# Local
-from tfda.base import TFDABase
-from tfda.defs import TFDAData, nan
-from tfda.utils import isnotnan
+# tf.config.run_functions_eagerly(True)
 
 
 class SimulateLowResolutionTransform(TFDABase):
@@ -44,7 +45,7 @@ class SimulateLowResolutionTransform(TFDABase):
         return dataset.new_data(
             tf.map_fn(
                 lambda xs: tf.cond(
-                    tf.random.uniform(()) < self.defs.p_per_sample,
+                    tf.less(tf.random.uniform(()), self.defs.p_per_sample),
                     lambda: augment_linear_downsampling_scipy(
                         xs,
                         zoom_range=self.defs.zoom_range,
@@ -71,7 +72,7 @@ def augment_liner_help(
 ):
     return tf.map_fn(
         lambda d: tf.cond(
-            tf.math.reduce_any(ignore_axes == d),
+            tf.math.reduce_any(tf.equal(ignore_axes, d)),
             lambda: shp[tf.cast(d, tf.int64)],
             # lambda: target_shape[tf.cast(d, tf.int64)],
             lambda: target_shape[tf.cast(d, tf.int64)],
@@ -80,11 +81,11 @@ def augment_liner_help(
     )
 
 
-@tf.function
+@tf.function(experimental_follow_type_hints=True)
 def augment_linear_downsampling_scipy(
     data_sample: tf.Tensor,
     zoom_range: tf.Tensor = (0.5, 1),
-    per_channel: tf.Tensor = True,
+    per_channel: tf.Tensor = TFbT,
     p_per_channel: tf.Tensor = 1.0,
     channels: tf.Tensor = nan,
     order_downsample: tf.Tensor = 1,
@@ -119,62 +120,78 @@ def augment_linear_downsampling_scipy(
         ignore_axes: tuple/list
 
     """
-    # if not isinstance(zoom_range, (list, tuple)):
-    #     zoom_range = [zoom_range]
-    # data_sample.shape = [2 20 376 376]
-    shp = tf.shape(data_sample)[1:]  # [ 20 376 376]
-    shp = tf.cast(shp, tf.float32)
-    dim = tf.shape(shp)[0]  # 3
+    shp = tf.shape(data_sample, out_type=tf.int64)[1:]
 
-    if tf.math.reduce_any(tf.math.is_nan(channels)):
-        channels = tf.range(
-            tf.shape(data_sample)[0], dtype=tf.float32
-        )  # [0, 1]
+    target_shape = tf.cast(
+        tf.round(
+            tf.cast(shp, tf.float32)
+            * tf.random.uniform((), zoom_range[0], zoom_range[1])
+        ),
+        tf.int64,
+    )
 
-    data_sample_c_list = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
+    channels = tf.cast(
+        tf.cond(
+            isnan(channels),
+            lambda: tf.range(
+                tf.shape(data_sample)[0], dtype=tf.float32
+            ),  # [0, 1]
+            lambda: channels,
+        ),
+        tf.int64,
+    )
 
-    for c in channels:
-        if tf.random.uniform(()) < p_per_channel:
-            # zoom = uniform(zoom_range[0], zoom_range[1])
-            zoom = tf.random.uniform(
-                (), minval=zoom_range[0], maxval=zoom_range[1]
-            )  # 0.8637516095857263
+    return tf.map_fn(
+        lambda c: tf.cond(
+            tf.less(tf.random.uniform(()), p_per_channel),
+            lambda: volume_resize(
+                volume_resize(
+                    data_sample[c],
+                    tf.cond(
+                        per_channel,
+                        lambda: tf.cond(
+                            isnotnan(tf.cast(ignore_axes, tf.float32)),
+                            lambda: tf.map_fn(
+                                lambda i: tf.cond(
+                                    tf.math.reduce_any(
+                                        tf.equal(
+                                            i, tf.cast(ignore_axes, tf.int64)
+                                        )
+                                    ),
+                                    lambda: shp[i],
+                                    lambda: target_shape[i],
+                                ),
+                                tf.range(
+                                    tf.shape(target_shape)[0],
+                                    dtype=target_shape.dtype,
+                                ),
+                            ),
+                            lambda: tf.cast(
+                                tf.round(
+                                    tf.cast(shp, tf.float32)
+                                    * tf.random.uniform(
+                                        (), zoom_range[0], zoom_range[1]
+                                    )
+                                ),
+                                tf.int64,
+                            ),
+                        ),
+                        lambda: target_shape,
+                    ),
+                    method="nearest",
+                ),
+                shp,
+                # NOTE: tpu doesn't support bicubic
+                method="bilinear",
+            ),
+            lambda: data_sample[c],
+        ),
+        channels,
+        fn_output_signature=tf.float32,
+    )
 
-            target_shape = tf.round(shp * zoom)
-            # target_shape = tf.cast(target_shape, tf.int32)  # [ 17 325 325]
 
-            target_shape_list = tf.TensorArray(
-                tf.float32, size=tf.size(target_shape)
-            )
-            target_shape_list = target_shape_list.unstack(target_shape)
-            if isnotnan(tf.cast(ignore_axes, tf.float32)):  # ignore_axes = 0
-                for i in tf.range(dim):
-                    condition = tf.math.reduce_any(
-                        ignore_axes == tf.cast(i, tf.float32)
-                    )
-                    case_true = shp[i]
-                    case_false = target_shape[i]
-                    target_shape_i = tf.where(condition, case_true, case_false)
-                    target_shape_list = target_shape_list.write(
-                        i, target_shape_i
-                    )
-                target_shape = target_shape_list.stack()
-            downsampled = volume_resize(
-                data_sample[tf.cast(c, tf.int64)],
-                target_shape,
-                method="nearest",
-            )
-            data_sample_c = volume_resize(downsampled, shp, method="bicubic")
-        else:
-            data_sample_c = data_sample[tf.cast(c, tf.int64)]
-        data_sample_c_list = data_sample_c_list.write(
-            tf.cast(c, tf.int32), data_sample_c
-        )
-    data_sample = data_sample_c_list.stack()
-    return data_sample
-
-
-@tf.function
+# @tf.function(experimental_follow_type_hints=True)
 def volume_resize(
     input_data: tf.Tensor, target_shape: tf.Tensor, method: tf.Tensor
 ):
@@ -208,3 +225,25 @@ if __name__ == "__main__":
         tf.print(
             data_dict, data_dict["data"].shape, data_dict["seg"].shape
         )  # (8, 40, 376, 376) (8, 20, 376, 376)
+
+        # NOTE: before test this, change zoom in both function to 1.
+        # tf.print(
+        #     tf.math.reduce_all(
+        #         tf.equal(
+        #             augment_linear_downsampling_scipy(
+        #                 images[0],
+        #                 p_per_channel=1.0,
+        #                 order_downsample=0,
+        #                 order_upsample=3,
+        #                 ignore_axes=(0,),
+        #             ),
+        #             augment_linear_downsampling_scipy_v1(
+        #                 images[0],
+        #                 p_per_channel=1.0,
+        #                 order_downsample=0,
+        #                 order_upsample=3,
+        #                 ignore_axes=(0,),
+        #             ),
+        #         )
+        #     )
+        # )

@@ -40,6 +40,7 @@ TFDA defaults
 import math as m
 import os
 
+# Tensorflow
 import tensorflow as tf
 
 # Types
@@ -102,8 +103,8 @@ class TFDADefs(tf.experimental.ExtensionType):
     gamma_range: tf.Tensor = (0.5, 2)
     invert_image: tf.Tensor = False
     retain_stats: tf.Tensor = False
-    blur_sigma: tf.Tensor = (1., 5.)
-    zoom_range: tf.Tensor = (0.5, 1.)
+    blur_sigma: tf.Tensor = (1.0, 5.0)
+    zoom_range: tf.Tensor = (0.5, 1.0)
     order_downsample: tf.Tensor = 1
     order_upsample: tf.Tensor = 0
     ignore_axes: tf.Tensor = nan
