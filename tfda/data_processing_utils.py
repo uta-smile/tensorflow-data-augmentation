@@ -274,6 +274,103 @@ def update_need_to_pad(need_to_pad, d, basic_generator_patch_size, case_all_data
         return tf.cond(tf.less(need_to_pad[d]+tf.shape(case_all_data, out_type=tf.int64)[d+1], basic_generator_patch_size[d]), lambda: need_to_pad_d, lambda: need_to_pad[d])
 
 @tf.function
+def not_force_fg(lb_x, ub_x, lb_y, ub_y, lb_z, ub_z):
+    bbox_x_lb = tf.random.uniform(
+        [], minval=lb_x, maxval=ub_x + 1, dtype=tf.int64
+    )
+    bbox_y_lb = tf.random.uniform(
+        [], minval=lb_y, maxval=ub_y + 1, dtype=tf.int64
+    )
+    bbox_z_lb = tf.random.uniform(
+        [], minval=lb_z, maxval=ub_z + 1, dtype=tf.int64
+    )
+    return bbox_x_lb, bbox_y_lb, bbox_z_lb
+
+@tf.function
+def do_force_fg_selected(lb_x, lb_y, lb_z, selected_voxel, basic_generator_patch_size):
+    bbox_x_lb = tf.maximum(
+        lb_x,
+        selected_voxel[0]
+        - basic_generator_patch_size[0] // 2,
+    )
+    bbox_y_lb = tf.maximum(
+        lb_y,
+        selected_voxel[1]
+        - basic_generator_patch_size[1] // 2,
+    )
+    bbox_z_lb = tf.maximum(
+        lb_z,
+        selected_voxel[2]
+        - basic_generator_patch_size[2] // 2,
+    )
+    return bbox_x_lb, bbox_y_lb, bbox_z_lb
+
+@tf.function
+def do_force_fg(i, class_locations_types, class_locations_shape, class_locations_bytes, lb_x, ub_x, lb_y, ub_y, lb_z, ub_z, basic_generator_patch_size):
+    c = random_choice(class_locations_types, 0)[0]
+    class_locations_decode = tf.io.decode_raw(
+        class_locations_bytes[i][c], tf.int64
+    )
+    class_locations = tf.reshape(
+        class_locations_decode, [class_locations_shape[i][c], -1]
+    )
+    selected_voxel = random_choice(class_locations, 0)[0] 
+
+    return tf.cond(isnan(tf.cast(selected_voxel, tf.float32)), lambda: not_force_fg(lb_x, ub_x, lb_y, ub_y, lb_z, ub_z), lambda: do_force_fg_selected(lb_x, lb_y, lb_z, selected_voxel, basic_generator_patch_size))
+    # return do_force_fg_selected(lb_x, lb_y, lb_z, selected_voxel, basic_generator_patch_size)
+    # return not_force_fg(lb_x, ub_x, lb_y, ub_y, lb_z, ub_z)
+
+def transform_fn_wrapper(basic_generator_patch_size, patch_size, batch_size, oversample_foregroung_percent):
+    def transform_fn_fn(dataset, input_context):
+        return transform_fn_2(dataset, basic_generator_patch_size, patch_size, batch_size, oversample_foregroung_percent)
+    return transform_fn_fn
+
+def transform_fn_2(dataset, basic_generator_patch_size, patch_size, batch_size, oversample_foregroung_percent):
+    dataset = dataset.batch(batch_size, drop_remainder=TFbT)
+    dataset = dataset.map(formalize_data_3d_wrapper(basic_generator_patch_size, patch_size, batch_size, oversample_foregroung_percent), num_parallel_calls=tf.data.experimental.AUTOTUNE)
+    return dataset
+
+def formalize_data_3d_wrapper(basic_generator_patch_size, patch_size, batch_size, oversample_foregroung_percent):
+    @tf.function
+    def formalize_data_3d_fn(dataset):
+        return formalize_data_3d_2(dataset, basic_generator_patch_size, patch_size, batch_size, oversample_foregroung_percent)
+
+    return formalize_data_3d_fn
+
+@tf.function(experimental_follow_type_hints=TFbT)
+def formalize_data_3d_2(data: DTFT, basic_generator_patch_size, patch_size, batch_size, oversample_foregroung_percent) -> Tuple[tf.Tensor, tf.Tensor]:
+
+    # main body begin here
+    (
+        case_identifier,
+        image_raw,
+        label_raw,
+        class_locations_bytes,
+        class_locations_shape,
+    ) = (
+        data["case_identifier"],
+        data["image/encoded"],
+        data["image/class/label"],
+        data["class_locations_bytes"],
+        data["class_locations_shape"],
+    )
+    # TODO please note that in this "generate_train_batch" function, we don't deal the 3D UNet Cascade. We will modify it after we tune the pipeline of casecade
+    original_image_size = tf.cast(data["image/shape"], dtype=tf.int64)
+    original_label_size = tf.cast(data["label/shape"], dtype=tf.int64)
+
+    results = tf.map_fn(lambda i: process_batch(i, image_raw, original_image_size, original_label_size, label_raw,
+            class_locations_bytes, class_locations_shape, basic_generator_patch_size, patch_size, batch_size, oversample_foregroung_percent),
+                        elems=tf.range(batch_size, dtype=tf.float32))
+    images = results[:, 0]
+    segs = results[:, 1]
+    # assert data is nan, f'{images}'
+    # data["images"] = images
+    # data["labels"] = segs
+    # return data
+    images, segs = tf.transpose(images, (0, 2, 3, 4, 1)), tf.transpose(segs, (0, 2, 3, 4, 1))
+    return images, segs
+
+@tf.function
 def process_batch(ii, image_raw, original_image_size, original_label_size, label_raw,
                 class_locations_bytes, class_locations_shape, basic_generator_patch_size, patch_size, batch_size, oversample_foregroung_percent):
     i = tf.cast(ii, tf.int64)
@@ -285,17 +382,15 @@ def process_batch(ii, image_raw, original_image_size, original_label_size, label
     ), tf.reshape(label, original_label_size[i])
     image = tf.cast(original_image, dtype=tf.float32)
     label = tf.cast(original_label, dtype=tf.float32)
-    # TPU doesn't support tf.int64 well, use tf.int64 directly.
-    if label.dtype == tf.int64:
-        label = tf.cast(label, dtype=tf.int64)
 
     # assert class_locations_bytes is nan, f'{}'
     class_locations_types = tf.range(tf.shape(class_locations_bytes[i])[0])
-    if get_do_oversample(i, batch_size, oversample_foregroung_percent):
-        force_fg = TFbT
-    else:
-        force_fg = TFbF
+    # if get_do_oversample(i, batch_size, oversample_foregroung_percent):
+    #     force_fg = TFbT
+    # else:
+    #     force_fg = TFbF
     case_all_data = tf.concat([image, label], axis=0)
+    force_fg = tf.less(tf.cast(i, tf.float32), tf.round(tf.cast(batch_size, tf.float32) * (tf.cast(1-oversample_foregroung_percent, tf.float32))))
     basic_generator_patch_size = tf.cast(
         basic_generator_patch_size, dtype=tf.int64
     )
@@ -328,55 +423,59 @@ def process_batch(ii, image_raw, original_image_size, original_label_size, label
         - basic_generator_patch_size[2]
     )
 
-    if not force_fg:
-        bbox_x_lb = tf.random.uniform(
-            [], minval=lb_x, maxval=ub_x + 1, dtype=tf.int64
-        )
-        bbox_y_lb = tf.random.uniform(
-            [], minval=lb_y, maxval=ub_y + 1, dtype=tf.int64
-        )
-        bbox_z_lb = tf.random.uniform(
-            [], minval=lb_z, maxval=ub_z + 1, dtype=tf.int64
-        )
-    else:
+    bbox_x_lb, bbox_y_lb, bbox_z_lb = tf.cond(force_fg, 
+                lambda: not_force_fg(lb_x, ub_x, lb_y, ub_y, lb_z, ub_z), 
+                lambda: do_force_fg(i, class_locations_types, class_locations_shape, class_locations_bytes, lb_x, ub_x, lb_y, ub_y, lb_z, ub_z, basic_generator_patch_size))
 
-        c = random_choice(class_locations_types, 0)[0]
-        class_locations_decode = tf.io.decode_raw(
-            class_locations_bytes[i][c], tf.int64
-        )
-        class_locations = tf.reshape(
-            class_locations_decode, [class_locations_shape[i][c], -1]
-        )
-        selected_voxel = random_choice(class_locations, 0)[0]
+    # if not force_fg:
+    #     bbox_x_lb = tf.random.uniform(
+    #         [], minval=lb_x, maxval=ub_x + 1, dtype=tf.int64
+    #     )
+    #     bbox_y_lb = tf.random.uniform(
+    #         [], minval=lb_y, maxval=ub_y + 1, dtype=tf.int64
+    #     )
+    #     bbox_z_lb = tf.random.uniform(
+    #         [], minval=lb_z, maxval=ub_z + 1, dtype=tf.int64
+    #     )
+    # else:
 
-        if selected_voxel is not nan:
-            # selected_voxel = random_choice(voxels_of_that_class, 0)
-            # selected_voxel = voxels_of_that_class[0]
-            bbox_x_lb = tf.maximum(
-                lb_x,
-                selected_voxel[0]
-                - basic_generator_patch_size[0] // 2,
-            )
-            bbox_y_lb = tf.maximum(
-                lb_y,
-                selected_voxel[1]
-                - basic_generator_patch_size[1] // 2,
-            )
-            bbox_z_lb = tf.maximum(
-                lb_z,
-                selected_voxel[2]
-                - basic_generator_patch_size[2] // 2,
-            )
-        else:
-            bbox_x_lb = tf.random.uniform(
-                [], minval=lb_x, maxval=ub_x + 1, dtype=tf.int64
-            )
-            bbox_y_lb = tf.random.uniform(
-                [], minval=lb_y, maxval=ub_y + 1, dtype=tf.int64
-            )
-            bbox_z_lb = tf.random.uniform(
-                [], minval=lb_z, maxval=ub_z + 1, dtype=tf.int64
-            )
+    #     c = random_choice(class_locations_types, 0)[0]
+    #     class_locations_decode = tf.io.decode_raw(
+    #         class_locations_bytes[i][c], tf.int64
+    #     )
+    #     class_locations = tf.reshape(
+    #         class_locations_decode, [class_locations_shape[i][c], -1]
+    #     )
+    #     selected_voxel = random_choice(class_locations, 0)[0]
+
+    #     if selected_voxel is not nan:
+    #         # selected_voxel = random_choice(voxels_of_that_class, 0)
+    #         # selected_voxel = voxels_of_that_class[0]
+    #         bbox_x_lb = tf.maximum(
+    #             lb_x,
+    #             selected_voxel[0]
+    #             - basic_generator_patch_size[0] // 2,
+    #         )
+    #         bbox_y_lb = tf.maximum(
+    #             lb_y,
+    #             selected_voxel[1]
+    #             - basic_generator_patch_size[1] // 2,
+    #         )
+    #         bbox_z_lb = tf.maximum(
+    #             lb_z,
+    #             selected_voxel[2]
+    #             - basic_generator_patch_size[2] // 2,
+    #         )
+    #     else:
+    #         bbox_x_lb = tf.random.uniform(
+    #             [], minval=lb_x, maxval=ub_x + 1, dtype=tf.int64
+    #         )
+    #         bbox_y_lb = tf.random.uniform(
+    #             [], minval=lb_y, maxval=ub_y + 1, dtype=tf.int64
+    #         )
+    #         bbox_z_lb = tf.random.uniform(
+    #             [], minval=lb_z, maxval=ub_z + 1, dtype=tf.int64
+    #         )
 
     bbox_x_ub = bbox_x_lb + basic_generator_patch_size[0]
     bbox_y_ub = bbox_y_lb + basic_generator_patch_size[1]
@@ -740,57 +839,64 @@ def body_fn_i(i, chunk_index, chunk_shape, total_result, chunk_size, coords, img
         ),tf.int64,)
     slice_size = chunk_max - chunk_min
     slice_img = tf.slice(img, chunk_min, slice_size)
-    reshape_img = tf.reshape(slice_img, (1, -1, 1))
-    slice_x, slice_y, slice_z = tf.meshgrid(
-    tf.range(chunk_min[0], chunk_max[0]),
-    tf.range(chunk_min[1], chunk_max[1]),
-    tf.range(chunk_min[2], chunk_max[2]),
-    indexing="ij",
-    )
-    slice_x = tf.reshape(slice_x, (-1, 1))
-    slice_y = tf.reshape(slice_y, (-1, 1))
-    slice_z = tf.reshape(slice_z, (-1, 1))
-    slice_coords = tf.concat([slice_x, slice_y, slice_z], axis=1)
-    slice_coords = tf.cast(
-        slice_coords[
-        tf.newaxis,
-        ],
-        tf.float32,
-    )
-    chunk_coords = tf.cast(
-        chunk_coords[
-        tf.newaxis,
-        ],
-    tf.float32,
-    )
-    order = tf.constant(3, dtype=tf.int64)
-    result = tfa.image.interpolate_spline(
-        slice_coords, reshape_img, chunk_coords, order=3
-    )
-    result = result[:, :, 0]
-    x, y, z = tf.meshgrid(
-        tf.range(chunk_index[1], chunk_index[1] + chunk_shape[1]),
-        tf.range(chunk_index[2], chunk_index[2] + chunk_shape[2]),
-        tf.range(chunk_index[3], chunk_index[3] + chunk_shape[3]),
+
+    @tf.function
+    def do_update(total_result, chunk_coords):
+        reshape_img = tf.reshape(slice_img, (1, -1, 1))
+        slice_x, slice_y, slice_z = tf.meshgrid(
+        tf.range(chunk_min[0], chunk_max[0]),
+        tf.range(chunk_min[1], chunk_max[1]),
+        tf.range(chunk_min[2], chunk_max[2]),
         indexing="ij",
-    )
-    x, y, z = (
-        tf.reshape(x, (-1, 1)),
-        tf.reshape(y, (-1, 1)),
-        tf.reshape(z, (-1, 1)),
-    )
-    xyz = tf.concat([x, y, z], axis=1)
-    map_coords = xyz[
-        tf.newaxis,
-    ]
+        )
+        slice_x = tf.reshape(slice_x, (-1, 1))
+        slice_y = tf.reshape(slice_y, (-1, 1))
+        slice_z = tf.reshape(slice_z, (-1, 1))
+        slice_coords = tf.concat([slice_x, slice_y, slice_z], axis=1)
+        slice_coords = tf.cast(
+            slice_coords[
+            tf.newaxis,
+            ],
+            tf.float32,
+        )
+        chunk_coords = tf.cast(
+            chunk_coords[
+            tf.newaxis,
+            ],
+        tf.float32,
+        )
+        order = tf.constant(3, dtype=tf.int64)
+        result = tfa.image.interpolate_spline(
+            slice_coords, reshape_img, chunk_coords, order=3
+        )
+        result = result[:, :, 0]
+        x, y, z = tf.meshgrid(
+            tf.range(chunk_index[1], chunk_index[1] + chunk_shape[1]),
+            tf.range(chunk_index[2], chunk_index[2] + chunk_shape[2]),
+            tf.range(chunk_index[3], chunk_index[3] + chunk_shape[3]),
+            indexing="ij",
+        )
+        x, y, z = (
+            tf.reshape(x, (-1, 1)),
+            tf.reshape(y, (-1, 1)),
+            tf.reshape(z, (-1, 1)),
+        )
+        xyz = tf.concat([x, y, z], axis=1)
+        map_coords = xyz[
+            tf.newaxis,
+        ]
+        total_result = tf.tensor_scatter_nd_add(
+            total_result, map_coords, result
+        )
+        return total_result
+
+    total_result = tf.cond(tf.logical_and(tf.equal(tf.math.reduce_min(slice_img), tf.constant(0.)), tf.equal(tf.math.reduce_max(slice_img), tf.constant(0.))), lambda: total_result, lambda: do_update(total_result, chunk_coords))
+
     chunk_index = tf.tensor_scatter_nd_add(
         chunk_index, [[1]], [chunk_shape[1]]
     )
     # chunk_index = tf.tensor_scatter_nd_update(chunk_index, [[0]], [0])
     chunk_shape = tf.cond(tf.equal(i, chunk_size-2), lambda: tf.tensor_scatter_nd_update(chunk_shape, [[1]], [tf.shape(coords, out_type=tf.int64)[1] - chunk_index[1]],), lambda: chunk_shape)
-    total_result = tf.tensor_scatter_nd_add(
-        total_result, map_coords, result
-    )
     i = i + 1
     return i, chunk_index, chunk_shape, total_result, chunk_size, coords, img
 
