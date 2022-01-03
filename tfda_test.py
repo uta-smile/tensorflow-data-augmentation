@@ -42,9 +42,9 @@ import tensorflow as tf
 # Others
 from tqdm import tqdm
 
-tf.config.run_functions_eagerly(True)
+# tf.config.run_functions_eagerly(True)
 # tf.debugging.set_log_device_placement(True)
-# tf.config.set_visible_devices([], 'GPU')
+tf.config.set_visible_devices([], 'GPU')
 
 from tfda.augmentations.utils import to_one_hot
 from tfda.base import Compose
@@ -91,7 +91,7 @@ params = TFDADefault3DParams(
 def all_da():
     dataseti = iter(
         tf.data.Dataset.from_tensor_slices(
-            tf.random.uniform((100 * 8 * 1 * 73 * 80 * 8 * 8,), 0, 100)
+            tf.random.uniform((2 * 8 * 1 * 73 * 80 * 8 * 8,), 0, 100)
         )
         .batch(64)
         .batch(80)
@@ -175,13 +175,14 @@ def all_da():
         seg = tf.transpose(seg, (0, 2, 3, 4, 1))
         res.append(TFDAData(data, seg))
 
-    assert len(res) == 100
+    # assert len(res) == 100
     for r in res:
+        tf.print(r.shape)
         assert r.shape[0] == 8
-        assert r.shape[1] == 1
-        assert r.shape[2] == 73
-        assert r.shape[3] == 80
-        assert r.shape[4] == 64
+        assert r.shape[1] == 73
+        assert r.shape[2] == 80
+        assert r.shape[3] == 64
+        assert r.shape[4] == 1
     return res
 
 

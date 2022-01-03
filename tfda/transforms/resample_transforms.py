@@ -45,7 +45,7 @@ class SimulateLowResolutionTransform(TFDABase):
         return dataset.new_data(
             tf.map_fn(
                 lambda xs: tf.cond(
-                    tf.random.uniform(()) < self.defs.p_per_sample,
+                    tf.less(tf.random.uniform(()), self.defs.p_per_sample),
                     lambda: augment_linear_downsampling_scipy(
                         xs,
                         zoom_range=self.defs.zoom_range,
@@ -181,7 +181,8 @@ def augment_linear_downsampling_scipy(
                     method="nearest",
                 ),
                 shp,
-                method="bicubic",
+                # NOTE: tpu doesn't support bicubic
+                method="bilinear",
             ),
             lambda: data_sample[c],
         ),
@@ -190,125 +191,7 @@ def augment_linear_downsampling_scipy(
     )
 
 
-@tf.function(experimental_follow_type_hints=True)
-def augment_linear_downsampling_scipy_v1(
-    data_sample: tf.Tensor,
-    zoom_range: tf.Tensor = (0.5, 1),
-    per_channel: tf.Tensor = TFbT,
-    p_per_channel: tf.Tensor = 1.0,
-    channels: tf.Tensor = nan,
-    order_downsample: tf.Tensor = 1,
-    order_upsample: tf.Tensor = 0,
-    ignore_axes: tf.Tensor = nan,
-):
-    """
-    Downsamples each sample (linearly) by a random factor and upsamples to original resolution again (nearest neighbor)
-
-    Info:
-    * Uses scipy zoom for resampling. A bit faster than nilearn.
-    * Resamples all dimensions (channels, x, y, z) with same downsampling factor (like isotropic=True from
-    linear_downsampling_generator_nilearn)
-
-    Args:
-        zoom_range: can be either tuple/list/np.ndarray or tuple of tuple. If tuple/list/np.ndarray, then the zoom
-        factor will be sampled from zoom_range[0], zoom_range[1] (zoom < 0 = downsampling!). If tuple of tuple then
-        each inner tuple will give a sampling interval for each axis (allows for different range of zoom values for
-        each axis
-
-        p_per_channel: probability for downsampling/upsampling a channel
-
-        per_channel (bool): whether to draw a new zoom_factor for each channel or keep one for all channels
-
-        channels (list, tuple): if None then all channels can be augmented. If list then only the channel indices can
-        be augmented (but may not always be depending on p_per_channel)
-
-        order_downsample:
-
-        order_upsample:
-
-        ignore_axes: tuple/list
-
-    """
-    # if not isinstance(zoom_range, (list, tuple)):
-    #     zoom_range = [zoom_range]
-    # data_sample.shape = [2 20 376 376]
-    shp = tf.shape(data_sample, out_type=tf.int64)[1:]  # [ 20 376 376]
-    dim = tf.shape(shp)[0]  # 3
-
-    # NOTE: useless
-    # target_shape = tf.cond(
-    #     tf.logical_not(per_channel),
-    #     lambda: tf.round(shp * tf.random.uniform((), zoom_range[0], zoom_range[1])),
-    #     lambda: target_shape
-    # )
-    target_shape = tf.cast(
-        tf.round(
-            tf.cast(shp, tf.float32)
-            * 1.0  # tf.random.uniform((), zoom_range[0], zoom_range[1])
-        ),
-        tf.int64,
-    )
-
-    channels = tf.cast(
-        tf.cond(
-            isnan(channels),
-            lambda: tf.range(
-                tf.shape(data_sample)[0], dtype=tf.float32
-            ),  # [0, 1]
-            lambda: channels,
-        ),
-        tf.int64,
-    )
-
-    data_sample_c_list = tf.TensorArray(tf.float32, size=0, dynamic_size=True)
-
-    for c in channels:
-        if tf.less(tf.random.uniform(()), p_per_channel):
-            # zoom = uniform(zoom_range[0], zoom_range[1])
-            # zoom = 1.0
-            zoom = tf.random.uniform(
-                (), minval=zoom_range[0], maxval=zoom_range[1]
-            )  # 0.8637516095857263
-
-            target_shape = tf.round(tf.cast(shp, tf.float32) * zoom)
-            # target_shape = tf.cast(target_shape, tf.int32)  # [ 17 325 325]
-
-            target_shape_list = tf.TensorArray(
-                tf.float32, size=tf.size(target_shape)
-            )
-            target_shape_list = target_shape_list.unstack(target_shape)
-            if isnotnan(tf.cast(ignore_axes, tf.float32)):  # ignore_axes = 0
-                for i in tf.range(dim):
-                    condition = tf.math.reduce_any(
-                        ignore_axes == tf.cast(i, tf.int32)
-                    )
-                    case_true = shp[i]
-                    case_false = target_shape[i]
-                    target_shape_i = tf.where(
-                        condition,
-                        tf.cast(case_true, tf.float32),
-                        tf.cast(case_false, tf.float32),
-                    )
-                    target_shape_list = target_shape_list.write(
-                        i, target_shape_i
-                    )
-                target_shape = target_shape_list.stack()
-            downsampled = volume_resize(
-                data_sample[tf.cast(c, tf.int64)],
-                target_shape,
-                method="nearest",
-            )
-            data_sample_c = volume_resize(downsampled, shp, method="bicubic")
-        else:
-            data_sample_c = data_sample[tf.cast(c, tf.int64)]
-        data_sample_c_list = data_sample_c_list.write(
-            tf.cast(c, tf.int32), data_sample_c
-        )
-    data_sample = data_sample_c_list.stack()
-    return data_sample
-
-
-@tf.function
+# @tf.function(experimental_follow_type_hints=True)
 def volume_resize(
     input_data: tf.Tensor, target_shape: tf.Tensor, method: tf.Tensor
 ):
