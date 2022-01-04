@@ -1,8 +1,9 @@
-from tfda.base import TFDABase
-from tfda.defs import DTFT, TFDAData
-
 # Tensorflow
 import tensorflow as tf
+
+# Local
+from tfda.base import TFDABase
+from tfda.defs import DTFT, TFDAData
 
 
 class Convert3DTo2DTransform(TFDABase):
@@ -16,7 +17,9 @@ class Convert3DTo2DTransform(TFDABase):
         )
 
         shp = tf.shape(dataset.data)
-        seg = tf.reshape(dataset["seg"], (shp[0], shp[1] * shp[2], shp[3], shp[4]))
+        seg = tf.reshape(
+            dataset["seg"], (shp[0], shp[1] * shp[2], shp[3], shp[4])
+        )
 
         # TODO
         # data_dict["orig_shape_data"] = dshp
@@ -34,18 +37,22 @@ class Convert2DTo3DTransform(TFDABase):
         shp = data_dict["orig_shape_data"]
         current_shape = tf.shape(data_dict["data"])
         data_dict["data"] = tf.reshape(
-               data_dict["data"],
-               (shp[0], shp[1], shp[2], current_shape[-2], current_shape[-1]),
+            data_dict["data"],
+            (shp[0], shp[1], shp[2], current_shape[-2], current_shape[-1]),
         )
         shp = data_dict["orig_shape_seg"]
         current_shape_seg = tf.shape(data_dict["seg"])
         data_dict["seg"] = tf.reshape(
-               data_dict["seg"],
-               (shp[0], shp[1], shp[2], current_shape_seg[-2], current_shape_seg[-1]),
+            data_dict["seg"],
+            (
+                shp[0],
+                shp[1],
+                shp[2],
+                current_shape_seg[-2],
+                current_shape_seg[-1],
+            ),
         )
         return data_dict
-
-
 
 
 class ConvertSegmentationToRegionsTransform(TFDABase):

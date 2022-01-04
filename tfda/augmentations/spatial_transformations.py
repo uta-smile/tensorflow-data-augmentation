@@ -36,6 +36,10 @@ license  : GPL-3.0+
 spatial transformations
 """
 
+# Tensorflow
+import tensorflow as tf
+
+# Local
 # tf.debugging.set_log_device_placement(True)
 from tfda.augmentations.utils import (
     create_zero_centered_coordinate_mesh,
@@ -52,9 +56,6 @@ from tfda.data_processing_utils import (
 )
 from tfda.defs import TFbF, TFbT, nan, pi
 from tfda.utils import isnotnan
-
-# Tensorflow
-import tensorflow as tf
 
 
 def augment_spatial_helper(

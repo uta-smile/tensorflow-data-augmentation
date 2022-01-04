@@ -35,10 +35,13 @@ license  : GPL-3.0+
 
 Resample Augmentations
 """
+# Tensorflow
 import tensorflow as tf
 
-from tfda.defs import nan, TFbT
+# Local
+from tfda.defs import TFbT, nan
 from tfda.utils import isnan, isnotnan
+
 
 @tf.function
 def augment_liner_help(
@@ -169,9 +172,7 @@ def augment_linear_downsampling_scipy(
 
 
 @tf.function(experimental_follow_type_hints=True)
-def volume_resize(
-    input_data: tf.Tensor, target_shape: tf.Tensor, method: str
-):
+def volume_resize(input_data: tf.Tensor, target_shape: tf.Tensor, method: str):
     target_shape = tf.cast(target_shape, tf.int32)
     image = tf.transpose(input_data, perm=[1, 2, 0])
     image = tf.image.resize(image, target_shape[1:], method=method)

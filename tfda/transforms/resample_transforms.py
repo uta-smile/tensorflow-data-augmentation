@@ -1,7 +1,10 @@
 # Tensorflow
 import tensorflow as tf
-from tfda.augmentations.resample_augmentations import \
-    augment_linear_downsampling_scipy
+
+# Local
+from tfda.augmentations.resample_augmentations import (
+    augment_linear_downsampling_scipy,
+)
 from tfda.base import TFDABase
 from tfda.defs import TFbT, TFDAData, nan
 from tfda.utils import isnan, isnotnan

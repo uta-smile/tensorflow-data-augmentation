@@ -36,13 +36,14 @@ license  : GPL-3.0+
 Noise Augmentations
 """
 
+# Tensorflow
+import tensorflow as tf
+
+# Local
 # tf.debugging.set_log_device_placement(True)
 from tfda.augmentations.utils import gaussian_filter, get_range_val
 from tfda.defs import nan
 from tfda.utils import isnotnan
-
-# Tensorflow
-import tensorflow as tf
 
 
 @tf.function(input_signature=[tf.TensorSpec(shape=(2,), dtype=tf.float32)])

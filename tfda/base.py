@@ -36,14 +36,15 @@ Tensorflow data augmentation base
 """
 # Standard Library
 
-# tf.debugging.set_log_device_placement(True)
-from tfda.defs import TFDADefs, nan
-
 # Tensorflow
 import tensorflow as tf
 
 # Types
 from typing import Any
+
+# Local
+# tf.debugging.set_log_device_placement(True)
+from tfda.defs import TFDADefs, nan
 
 
 class TFDABase(tf.keras.layers.Layer):

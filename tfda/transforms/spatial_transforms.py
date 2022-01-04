@@ -36,6 +36,13 @@ license  : GPL-3.0+
 Spatial Transforms
 """
 
+# Tensorflow
+import tensorflow as tf
+
+# Types
+from typing import Tuple
+
+# Local
 # tf.debugging.set_log_device_placement(True)
 from tfda.augmentations.spatial_transformations import (
     augment_mirroring,
@@ -44,12 +51,6 @@ from tfda.augmentations.spatial_transformations import (
 from tfda.base import TFDABase
 from tfda.defs import TFbF, TFbT, TFDAData, nan, pi
 from tfda.utils import isnotnan
-
-# Tensorflow
-import tensorflow as tf
-
-# Types
-from typing import Tuple
 
 
 class SpatialTransform(TFDABase):

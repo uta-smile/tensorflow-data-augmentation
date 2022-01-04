@@ -36,11 +36,12 @@ license  : GPL-3.0+
 Augmentation Utils
 """
 
-from tfda.defs import nan
-from tfda.utils import to_tf_float, to_tf_int
-
 # Tensorflow
 import tensorflow as tf
+
+# Local
+from tfda.defs import nan
+from tfda.utils import to_tf_float, to_tf_int
 
 # tf.debugging.set_log_device_placement(True)
 
@@ -241,7 +242,7 @@ def scale_coords(coords: tf.Tensor, scale: tf.Tensor) -> tf.Tensor:
     input_signature=[
         tf.TensorSpec(shape=(), dtype=tf.float32),
         tf.TensorSpec(shape=(), dtype=tf.int64),
-    ]
+    ],
 )
 def gaussian_kernel1d(sigma: tf.Tensor, radius: tf.Tensor) -> tf.Tensor:
     x = tf.range(-radius, radius + 1, dtype=tf.float32)
@@ -334,11 +335,27 @@ def gaussian_filter(
     NOTE: only for 3 dim Tensor.
     NOTE: jit false due to dynamic radius in kernel
     """
-    xxs = tf.transpose(tf.map_fn(lambda xs: gaussian_filter1d(xs, sigma, mode, cval), tf.transpose(xxs, [2, 1, 0])), [2, 1, 0])
-    xxs = tf.transpose(tf.map_fn(lambda xs: gaussian_filter1d(xs, sigma, mode, cval), tf.transpose(xxs, [2, 0, 1])), [1, 2, 0])
-    return tf.transpose(tf.map_fn(lambda xs: gaussian_filter1d(xs, sigma, mode, cval), tf.transpose(xxs, [1, 0, 2])), [1, 0, 2])
-
-
+    xxs = tf.transpose(
+        tf.map_fn(
+            lambda xs: gaussian_filter1d(xs, sigma, mode, cval),
+            tf.transpose(xxs, [2, 1, 0]),
+        ),
+        [2, 1, 0],
+    )
+    xxs = tf.transpose(
+        tf.map_fn(
+            lambda xs: gaussian_filter1d(xs, sigma, mode, cval),
+            tf.transpose(xxs, [2, 0, 1]),
+        ),
+        [1, 2, 0],
+    )
+    return tf.transpose(
+        tf.map_fn(
+            lambda xs: gaussian_filter1d(xs, sigma, mode, cval),
+            tf.transpose(xxs, [1, 0, 2]),
+        ),
+        [1, 0, 2],
+    )
 
 
 if __name__ == "__main__":
