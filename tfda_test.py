@@ -44,8 +44,9 @@ from tqdm import tqdm
 
 # tf.config.run_functions_eagerly(True)
 # tf.debugging.set_log_device_placement(True)
-tf.config.set_visible_devices([], 'GPU')
+tf.config.set_visible_devices([], "GPU")
 
+# Local
 from tfda.augmentations.utils import to_one_hot
 from tfda.base import Compose
 from tfda.defs import TFDAData, TFDADefault3DParams, nan, pi
@@ -54,7 +55,7 @@ from tfda.transforms.color_transforms import (
     ContrastAugmentationTransform,
     GammaTransform,
 )
-from tfda.transforms.custom_transforms import MaskTransform
+from tfda.transforms.custom_transforms import MaskTransform, OneHotTransform
 from tfda.transforms.noise_transforms import (
     GaussianBlurTransform,
     GaussianNoiseTransform,
@@ -89,18 +90,6 @@ params = TFDADefault3DParams(
 
 
 def all_da():
-    dataseti = iter(
-        tf.data.Dataset.from_tensor_slices(
-            tf.random.uniform((2 * 8 * 1 * 73 * 80 * 8 * 8,), 0, 100)
-        )
-        .batch(64)
-        .batch(80)
-        .batch(73)
-        .batch(1)
-        .batch(8)
-        .prefetch(tf.data.AUTOTUNE)
-    )
-
     da = Compose(
         [
             tf.keras.layers.Input(
@@ -163,21 +152,37 @@ def all_da():
                 tf.constant([[0, 0]]), mask_idx_in_seg=0, set_outside_to=0.0
             ),
             RemoveLabelTransform(-1, 0),
+            OneHotTransform(),
         ]
     )
     da.compile()
     da.summary()
+
+    dataseti = iter(
+        tf.data.Dataset.from_tensor_slices(
+            tf.random.uniform((2 * 8 * 1 * 73 * 80 * 8 * 8,), 0, 100)
+        )
+        .batch(64)
+        .batch(80)
+        .batch(73)
+        .batch(1)
+        .batch(8)
+        .map(lambda x: da(TFDAData(x, x)))
+        .prefetch(tf.data.AUTOTUNE)
+    )
     res = []
     for dataset in tqdm(dataseti, desc="steps:"):
-        data_dict = da(TFDAData(dataset, dataset))
-        seg = to_one_hot(data_dict.seg[:, 0], [0, 1, 2])
-        data = tf.transpose(data_dict.data, (0, 2, 3, 4, 1))
-        seg = tf.transpose(seg, (0, 2, 3, 4, 1))
-        res.append(TFDAData(data, seg))
+
+        res.append(dataset)
 
     # assert len(res) == 100
-    for r in res:
+    for d in res:
+        r = d.data
         tf.print(r.shape)
+        # assert r.shape[0] == 2
+        # assert r.shape[1] == 40
+        # assert r.shape[2] == 56
+        # assert r.shape[3] == 40
         assert r.shape[0] == 8
         assert r.shape[1] == 73
         assert r.shape[2] == 80
