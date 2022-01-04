@@ -6,67 +6,46 @@ import tensorflow as tf
 
 
 class Convert3DTo2DTransform(TFDABase):
+    """Convert 3D to 2D."""
+
     @tf.function(experimental_follow_type_hints=True)
     def call(self, dataset: TFDAData) -> TFDAData:
-        return convert_3d_to_2d_generator(dataset)
+        dshp = tf.shape(dataset.data)
+        data = tf.reshape(
+            dataset.data, (dshp[0], dshp[1] * dshp[2], dshp[3], dshp[4])
+        )
 
+        shp = tf.shape(dataset.data)
+        seg = tf.reshape(dataset["seg"], (shp[0], shp[1] * shp[2], shp[3], shp[4]))
 
-@tf.function(experimental_follow_type_hints=True)
-def convert_3d_to_2d_generator(dataset: TFDAData) -> TFDAData:
-    # data_dict_copy = {}
-    # shp = data_dict['data'].shape
-    # data_dict_copy['data'] = tf.reshape(data_dict['data'], (shp[0], shp[1] * shp[2], shp[3], shp[4]))
-    # data_dict_copy['orig_shape_data'] = shp
-    # shp = data_dict['seg'].shape
-    # data_dict_copy['seg'] = tf.reshape(data_dict['seg'], (shp[0], shp[1] * shp[2], shp[3], shp[4]))
-    # data_dict_copy['orig_shape_seg'] = shp
-    # return data_dict_copy
+        # TODO
+        # data_dict["orig_shape_data"] = dshp
+        # data_dict["orig_shape_seg"] = shp
 
-    shp = dataset["data"].shape
-    data = tf.reshape(
-        dataset["data"], (shp[0], shp[1] * shp[2], shp[3], shp[4])
-    )
-    # data_dict["orig_shape_data"] = shp
-    shp = data_dict["seg"].shape
-    seg = tf.reshape(dataset["seg"], (shp[0], shp[1] * shp[2], shp[3], shp[4]))
-    # data_dict["orig_shape_seg"] = shp
-    return TFDAData(data, seg)
+        return TFDAData(data, seg)
 
 
 class Convert2DTo3DTransform(TFDABase):
+    """Convert 2D to 3D."""
+
     @tf.function(experimental_follow_type_hints=True)
     def call(self, data_dict: DTFT) -> DTFT:
-        return convert_2d_to_3d_generator(data_dict)
+        # TODO: ERROR
+        shp = data_dict["orig_shape_data"]
+        current_shape = tf.shape(data_dict["data"])
+        data_dict["data"] = tf.reshape(
+               data_dict["data"],
+               (shp[0], shp[1], shp[2], current_shape[-2], current_shape[-1]),
+        )
+        shp = data_dict["orig_shape_seg"]
+        current_shape_seg = tf.shape(data_dict["seg"])
+        data_dict["seg"] = tf.reshape(
+               data_dict["seg"],
+               (shp[0], shp[1], shp[2], current_shape_seg[-2], current_shape_seg[-1]),
+        )
+        return data_dict
 
 
-# TODO: ERROR
-@tf.function(experimental_follow_type_hints=True)
-def convert_2d_to_3d_generator(data_dict: DTFT) -> DTFT:
-    # data_dict_copy = {}
-    # shp = data_dict['orig_shape_data']
-    # current_shape = data_dict['data'].shape
-    # data_dict_copy['data'] = tf.reshape(data_dict['data'], (shp[0], shp[1], shp[2], current_shape[-2], current_shape[-1]))
-    # shp = data_dict['orig_shape_seg']
-    # current_shape_seg = data_dict['seg'].shape
-    # data_dict_copy['seg'] = tf.reshape(data_dict['seg'], (shp[0], shp[1], shp[2], current_shape_seg[-2], current_shape_seg[-1]))
-    # for key in data_dict.keys():
-    #     if key not in data_dict_copy.keys():
-    #         data_dict_copy[key] = data_dict[key]
-    # return data_dict_copy
-
-    shp = data_dict["orig_shape_data"]
-    current_shape = tf.shape(data_dict["data"])
-    data_dict["data"] = tf.reshape(
-        data_dict["data"],
-        (shp[0], shp[1], shp[2], current_shape[-2], current_shape[-1]),
-    )
-    shp = data_dict["orig_shape_seg"]
-    current_shape_seg = tf.shape(data_dict["seg"])
-    data_dict["seg"] = tf.reshape(
-        data_dict["seg"],
-        (shp[0], shp[1], shp[2], current_shape_seg[-2], current_shape_seg[-1]),
-    )
-    return data_dict
 
 
 class ConvertSegmentationToRegionsTransform(TFDABase):
