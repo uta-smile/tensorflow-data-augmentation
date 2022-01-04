@@ -4,6 +4,7 @@ import tensorflow as tf
 # Local
 from tfda.base import TFDABase
 from tfda.defs import DTFT, TFDAData
+from tfda.augmentations.utils import to_one_hot
 
 
 class Convert3DTo2DTransform(TFDABase):
@@ -164,6 +165,19 @@ class MaskTransform(TFDABase):
                 fn_output_signature=tf.float32,
             )
         )
+
+
+class OneHotTransform(TFDABase):
+    """One hot and transpose transform."""
+
+    @tf.function(experimental_follow_type_hints=True)
+    def call(self, dataset: TFDAData) -> TFDAData:
+        """Call the transform."""
+        data = tf.transpose(dataset.data, (0, 2, 3, 4, 1))
+        seg = to_one_hot(dataset.seg[:, 0], [0, 1, 2])
+        seg = tf.transpose(seg, (0, 2, 3, 4, 1))
+        return TFDAData(data, seg)
+
 
 
 if __name__ == "__main__":
