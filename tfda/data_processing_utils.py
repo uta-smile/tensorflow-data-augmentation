@@ -535,11 +535,16 @@ def process_batch(
 
     # assert class_locations_bytes is nan, f'{}'
     class_locations_types = tf.range(tf.shape(class_locations_bytes[i])[0])
-    # if get_do_oversample(i, batch_size, oversample_foregroung_percent):
-    #     force_fg = TFbT
-    # else:
-    #     force_fg = TFbF
+
+    # just for test here
+    # img = volume_resize(image[0], basic_generator_patch_size, 'bicubic')
+    # seg = volume_resize(label[0], basic_generator_patch_size, 'bicubic')
+    # result = tf.stack([img, seg])
+    # tf.print(tf.shape(result))
+    # return result
+
     case_all_data = tf.concat([image, label], axis=0)
+    # tf.print(tf.shape(case_all_data))
     force_fg = tf.less(
         tf.cast(i, tf.float32),
         tf.round(
@@ -599,56 +604,6 @@ def process_batch(
             basic_generator_patch_size,
         ),
     )
-
-    # if not force_fg:
-    #     bbox_x_lb = tf.random.uniform(
-    #         [], minval=lb_x, maxval=ub_x + 1, dtype=tf.int64
-    #     )
-    #     bbox_y_lb = tf.random.uniform(
-    #         [], minval=lb_y, maxval=ub_y + 1, dtype=tf.int64
-    #     )
-    #     bbox_z_lb = tf.random.uniform(
-    #         [], minval=lb_z, maxval=ub_z + 1, dtype=tf.int64
-    #     )
-    # else:
-
-    #     c = random_choice(class_locations_types, 0)[0]
-    #     class_locations_decode = tf.io.decode_raw(
-    #         class_locations_bytes[i][c], tf.int64
-    #     )
-    #     class_locations = tf.reshape(
-    #         class_locations_decode, [class_locations_shape[i][c], -1]
-    #     )
-    #     selected_voxel = random_choice(class_locations, 0)[0]
-
-    #     if selected_voxel is not nan:
-    #         # selected_voxel = random_choice(voxels_of_that_class, 0)
-    #         # selected_voxel = voxels_of_that_class[0]
-    #         bbox_x_lb = tf.maximum(
-    #             lb_x,
-    #             selected_voxel[0]
-    #             - basic_generator_patch_size[0] // 2,
-    #         )
-    #         bbox_y_lb = tf.maximum(
-    #             lb_y,
-    #             selected_voxel[1]
-    #             - basic_generator_patch_size[1] // 2,
-    #         )
-    #         bbox_z_lb = tf.maximum(
-    #             lb_z,
-    #             selected_voxel[2]
-    #             - basic_generator_patch_size[2] // 2,
-    #         )
-    #     else:
-    #         bbox_x_lb = tf.random.uniform(
-    #             [], minval=lb_x, maxval=ub_x + 1, dtype=tf.int64
-    #         )
-    #         bbox_y_lb = tf.random.uniform(
-    #             [], minval=lb_y, maxval=ub_y + 1, dtype=tf.int64
-    #         )
-    #         bbox_z_lb = tf.random.uniform(
-    #             [], minval=lb_z, maxval=ub_z + 1, dtype=tf.int64
-    #         )
 
     bbox_x_ub = bbox_x_lb + basic_generator_patch_size[0]
     bbox_y_ub = bbox_y_lb + basic_generator_patch_size[1]
@@ -710,6 +665,7 @@ def process_batch(
         constant_values=-1,
     )
     result = tf.stack([img, seg])
+    # tf.print(tf.shape(result))
     return result
 
 
@@ -2400,6 +2356,15 @@ def thomas_algorithm(A, B, C, D):
     X = tf.concat([X, [X_last]], axis=0)
     return X
 
+@tf.function(experimental_follow_type_hints=True)
+def volume_resize(input_data: tf.Tensor, target_shape: tf.Tensor, method: str):
+    target_shape = tf.cast(target_shape, tf.int32)
+    image = tf.transpose(input_data, perm=[1, 2, 0])
+    image = tf.image.resize(image, target_shape[1:], method=method)
+    image = tf.transpose(image, perm=[2, 0, 1])
+    image = tf.image.resize(image, target_shape[:-1], method=method)
+    return image
+
 
 def main():
 
@@ -2513,17 +2478,14 @@ def main():
     tf_end = time.time()
     tf_time = tf_end - tf_start
     print(tf_time)
-<<<<<<< Updated upstream
     """
-=======
-    '''
+    
     image = tf.random.uniform((10, 20, 10))
     x, y, z = tf.meshgrid(tf.range(tf.shape(image)[0]), tf.range(tf.shape(image)[1]), tf.range(tf.shape(image)[2]), indexing='ij')
     xyz = tf.stack([x, y, z])
     coords = tf.cast(xyz, tf.float32)
     result = map_linear_coordinates_3d(image, coords)
     print(result.shape)
->>>>>>> Stashed changes
 
 
 if __name__ == "__main__":
