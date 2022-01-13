@@ -289,14 +289,15 @@ def gaussian_filter1d(
     sigma: tf.Tensor,
     mode: tf.Tensor,
     cval: tf.Tensor = 0.0,
+    truncate: tf.Tensor = 4.0,
 ):
     """Gaussian filter batched 1D.
 
     mode 0: reflect padding;
-    mode 1: reflect padding.
+    mode 1: constant padding.
     """
     sigma = tf.cast(sigma, tf.float32)
-    lw = tf.cast(sigma * sigma + 0.5, tf.int64)
+    lw = tf.cast(truncate * sigma + 0.5, tf.int64)
     weights = gaussian_kernel1d(sigma, lw)[::-1]
 
     ws = tf.size(weights)
@@ -326,6 +327,7 @@ def gaussian_filter(
     sigma: tf.Tensor,
     mode: tf.Tensor = 0,
     cval: tf.Tensor = 0.0,
+    truncate: tf.Tensor = 4.0,
 ) -> tf.Tensor:
     """Gaussian filter trans from scipy gaussian filter.
 
@@ -337,21 +339,21 @@ def gaussian_filter(
     """
     xxs = tf.transpose(
         tf.map_fn(
-            lambda xs: gaussian_filter1d(xs, sigma, mode, cval),
+            lambda xs: gaussian_filter1d(xs, sigma, mode, cval, truncate),
             tf.transpose(xxs, [2, 1, 0]),
         ),
         [2, 1, 0],
     )
     xxs = tf.transpose(
         tf.map_fn(
-            lambda xs: gaussian_filter1d(xs, sigma, mode, cval),
+            lambda xs: gaussian_filter1d(xs, sigma, mode, cval, truncate),
             tf.transpose(xxs, [2, 0, 1]),
         ),
         [1, 2, 0],
     )
     return tf.transpose(
         tf.map_fn(
-            lambda xs: gaussian_filter1d(xs, sigma, mode, cval),
+            lambda xs: gaussian_filter1d(xs, sigma, mode, cval, truncate),
             tf.transpose(xxs, [1, 0, 2]),
         ),
         [1, 0, 2],
@@ -362,7 +364,7 @@ if __name__ == "__main__":
     # Others
     import scipy.ndimage.filters as sf
 
-    patch_size = tf.constant([20, 376, 376])
+    patch_size = tf.constant([2, 3, 4])
 
     with tf.device("/CPU:0"):
         tf.print(get_range_val([0, 1.0]))
@@ -376,13 +378,13 @@ if __name__ == "__main__":
         #     40,
         # ]
 
-        # xs = tf.random.uniform(patch_size, 0, 1)
+        xs = tf.random.uniform(patch_size, 0, 100)
         # s = xs.shape
         # tf.print(xs.shape)
-        # x = gaussian_filter(xs, 5, "reflect")
-        # tf.print("\n\n", x[0][0], "\n", x.shape, x[0].shape)
-        # x_ = sf.gaussian_filter(xs, 5, mode="reflect")
-        # tf.print("----\n", x_[0][0], "\n", x_.shape, x_[0].shape)
+        x = gaussian_filter(xs, 5, 0)
+        tf.print("\n\n", x, "\n", x.shape, x.shape)
+        x_ = sf.gaussian_filter(xs, 5, mode="reflect")
+        tf.print("----\n", x_, "\n", x_.shape, x_.shape)
 
         # tf.print("----------")
         # tf.print(rotate_coords_3d(coords, 1.0, 1.0, 1.0).shape)
