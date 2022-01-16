@@ -1,7 +1,7 @@
 [project]
-name = "Tensorflow data augmentation"
-version = ""
-description = ""
+name = "tfda"
+version = "0.0.2"
+description = "Tensorflow data augmentation"
 authors = [
     {name = "Nasy", email = "nasyxx+smile@gmail.com"},
 ]
