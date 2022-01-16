@@ -169,12 +169,15 @@ class MaskTransform(TFDABase):
 
 class OneHotTransform(TFDABase):
     """One hot and transpose transform."""
+    def __init__(self, all_seg_labels: tuple, **kws) -> None:
+        super().__init__(**kws)
+        self._all_seg_labels = all_seg_labels
 
     @tf.function(experimental_follow_type_hints=True)
     def call(self, dataset: TFDAData) -> TFDAData:
         """Call the transform."""
         data = tf.transpose(dataset.data, (0, 2, 3, 4, 1))
-        seg = to_one_hot(dataset.seg[:, 0], [0, 1, 2])
+        seg = to_one_hot(dataset.seg[:, 0], self._all_seg_labels)
         seg = tf.transpose(seg, (0, 2, 3, 4, 1))
         return TFDAData(data, seg)
 
