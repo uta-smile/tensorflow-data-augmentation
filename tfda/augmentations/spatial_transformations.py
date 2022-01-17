@@ -146,9 +146,9 @@ def augment_spatial(
                         tf.equal(dim, 3),
                         lambda: rotate_coords_3d(coords, a_x, a_y, a_z),
                         lambda: coords,
-                    )
-                ),
-                True,
+                    ),
+                    True,
+                )
             )(
                 tf.cond(
                     tf.less_equal(tf.random.uniform(()), p_rot_per_axis),
