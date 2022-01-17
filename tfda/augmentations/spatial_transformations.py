@@ -304,7 +304,7 @@ def augment_spatial(
     # spatial augment main body
     patch_size = tf.convert_to_tensor(patch_size)
 
-    patch_center_dist_from_border = tf.convert_to_tensor(
+    patch_center_dist_from_border = tf.cast(
         patch_center_dist_from_border, dtype=tf.float32
     )
     patch_size = tf.cast(patch_size, tf.int64)
