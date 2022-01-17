@@ -872,7 +872,7 @@ def is_seg_intp(img, coords, order=3):
 
     i = tf.constant(0)
     _, _, _, result, _ = tf.while_loop(
-        cond_to_loop, body_fn, [img, i, coords, result, order]
+        cond_to_loop, body_fn, [img, i, coords, result, 3]
     )
     return result
 
@@ -881,7 +881,7 @@ def is_seg_intp(img, coords, order=3):
 def interpolate_img(
     img, coords, order=3, mode="nearest", cval=0.0, is_seg=TFbF
 ):
-    return tf.cond(tf.logical_and(is_seg), lambda: is_seg_intp(img, coords, order), lambda: map_coordinates_img(img, coords, 3))
+    return tf.cond(tf.logical_and(is_seg, tf.logical_not(tf.equal(order, 3))), lambda: is_seg_intp(img, coords, order), lambda: map_coordinates_img(img, coords, 3))
 
 
 @tf.function
