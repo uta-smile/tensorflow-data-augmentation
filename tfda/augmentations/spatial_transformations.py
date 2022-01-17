@@ -118,98 +118,64 @@ def augment_spatial(
         patch_size = tf.cast(patch_size, tf.int64)
         coords = create_zero_centered_coordinate_mesh(patch_size)
         # cshape = tf.concat([[coords.get_shape()[0]], patch_size], 0)
-        modified_coords = False
+        modified_coords = TFbF
+        if do_elastic_deform and tf.less(
+            tf.random.uniform(()), p_el_per_sample
+        ):
+            a = tf.random.uniform((), alpha[0], alpha[1])
+            s = tf.random.uniform((), sigma[0], sigma[1])
+            coords = elastic_deform_coordinates(coords, a, s)
+            modified_coords = TFbT
 
-        coords, modified_coords = tf.cond(
-            tf.logical_and(
-                do_elastic_deform,
-                tf.less(tf.random.uniform(()), p_el_per_sample),
-            ),
-            lambda: (
-                elastic_deform_coordinates(
-                    coords,
-                    tf.random.uniform((), alpha[0], alpha[1]),
-                    tf.random.uniform((), sigma[0], sigma[1]),
-                ),
-                True,
-            ),
-            lambda: (coords, modified_coords),
-        )
+        if do_rotation and tf.less(tf.random.uniform(()), p_rot_per_sample):
+            if tf.less_equal(tf.random.uniform(()), p_rot_per_axis):
+                a_x = tf.random.uniform((), angle_x[0], angle_x[1])
+            else:
+                a_x = 0.0
 
-        coords, modified_coords = tf.cond(
-            tf.logical_and(
-                do_rotation, tf.less(tf.random.uniform(()), p_rot_per_sample)
-            ),
-            lambda: (
-                lambda a_x, a_y, a_z: (
-                    tf.cond(
-                        tf.equal(dim, 3),
-                        lambda: rotate_coords_3d(coords, a_x, a_y, a_z),
-                        lambda: coords,
-                    ),
-                    True,
-                )
-            )(
-                tf.cond(
-                    tf.less_equal(tf.random.uniform(()), p_rot_per_axis),
-                    lambda: tf.random.uniform((), angle_x[0], angle_x[1]),
-                    lambda: 0.0,
-                ),
-                tf.cond(
-                    tf.less_equal(tf.random.uniform(()), p_rot_per_axis),
-                    lambda: tf.random.uniform((), angle_y[0], angle_y[1]),
-                    lambda: 0.0,
-                ),
-                tf.cond(
-                    tf.less_equal(tf.random.uniform(()), p_rot_per_axis),
-                    lambda: tf.random.uniform((), angle_z[0], angle_z[1]),
-                    lambda: 0.0,
-                ),
-            ),
-            lambda: (coords, modified_coords),
-        )
+            if tf.equal(dim, 3):
+                if tf.less_equal(tf.random.uniform(()), p_rot_per_axis):
+                    a_y = tf.random.uniform((), angle_y[0], angle_y[1])
+                else:
+                    a_y = 0.0
 
-        tf.cond(
-            tf.logical_and(
-                do_scale, tf.less(tf.random.uniform(()), p_scale_per_sample)
-            ),
-            lambda: (lambda sc: (scale_coords(coords, sc), True))(
-                tf.cond(
-                    tf.logical_and(
-                        independent_scale_for_each_axis,
-                        tf.less(
-                            tf.random.uniform(()), p_independent_scale_per_axis
-                        ),
-                    ),
-                    lambda: tf.map_fn(
-                        lambda x: tf.cond(
-                            tf.logical_and(
-                                tf.less(
-                                    tf.random.uniform(()), tf.constant(0.5)
-                                ),
-                                tf.less(scale[0], tf.constant(1.0)),
-                            ),
-                            lambda: tf.random.uniform((), scale[0], 1.0),
-                            lambda: tf.random.uniform(
-                                (), tf.maximum(scale[0], 1.0), scale[1]
-                            ),
-                        ),
-                        tf.range(dim, dtype=tf.float32),
-                    ),
-                    lambda: tf.cond(
-                        tf.logical_and(
-                            tf.less(tf.random.uniform(()), 0.5),
-                            tf.less(scale[0], 1.0),
-                        ),
+                if tf.less_equal(tf.random.uniform(()), p_rot_per_axis):
+                    a_z = tf.random.uniform((), angle_z[0], angle_z[1])
+                else:
+                    a_z = 0.0
+
+                coords = rotate_coords_3d(coords, a_x, a_y, a_z)
+            else:
+                pass
+                # coords = rotate_coords_2d(coords, a_x)
+            modified_coords = TFbT
+
+        if do_scale and tf.less(tf.random.uniform(()), p_scale_per_sample):
+            if independent_scale_for_each_axis and tf.less(
+                tf.random.uniform(()), p_independent_scale_per_axis
+            ):
+                sc = tf.map_fn(
+                    lambda x: tf.cond(
+                        tf.less(tf.random.uniform(()), tf.constant(0.5))
+                        and tf.less(scale[0], tf.constant(1.0)),
                         lambda: tf.random.uniform((), scale[0], 1.0),
                         lambda: tf.random.uniform(
                             (), tf.maximum(scale[0], 1.0), scale[1]
                         ),
                     ),
+                    tf.range(dim, dtype=tf.float32),
                 )
-            ),
-            lambda: (coords, modified_coords),
-        )
+            else:
+                sc = tf.cond(
+                    tf.less(tf.random.uniform(()), 0.5)
+                    and tf.less(scale[0], 1.0),
+                    lambda: tf.random.uniform((), scale[0], 1.0),
+                    lambda: tf.random.uniform(
+                        (), tf.maximum(scale[0], 1.0), scale[1]
+                    ),
+                )
+            coords = scale_coords(coords, sc)
+            modified_coords = TFbT
 
         # add from here
         if modified_coords:
@@ -275,9 +241,7 @@ def augment_spatial(
             data_result = update_tf_channel(
                 data_result, sample_id, data_sample
             )
-            # TODO
-            # if isnotnan(seg):
-            if True:
+            if isnotnan(seg):
                 seg_sample = tf.zeros(tf.shape(seg_result)[1:])
                 channel_id = tf.constant(0)
                 cond_to_loop_seg = lambda channel_id, seg_sample: tf.less(
@@ -307,15 +271,11 @@ def augment_spatial(
                     seg_result, sample_id, seg_sample
                 )
         else:
-            # TODO
-            # s = nan
-            # if tf.math.reduce_any(tf.math.is_nan(seg)):
-            #     s = nan
-            # else:
-            #     s = seg[sample_id : sample_id + 1]
-
-            s = seg[sample_id : sample_id + 1]
-
+            s = nan
+            if tf.math.reduce_any(tf.math.is_nan(seg)):
+                s = nan
+            else:
+                s = seg[sample_id : sample_id + 1]
             # if random_crop:
             #     # margin = [patch_center_dist_from_border[d] - tf.cast(patch_size[d], dtype=tf.float32) // 2 for d in tf.range(dim)]
             #     margin = tf.map_fn(
@@ -336,10 +296,7 @@ def augment_spatial(
                 data[sample_id : sample_id + 1], patch_size, s
             )
             data_result = update_tf_channel(data_result, sample_id, d[0])
-
-            # TODO
-            # if isnotnan(seg):
-            if True:
+            if isnotnan(seg):
                 seg_result = update_tf_channel(seg_result, sample_id, s[0])
         sample_id = sample_id + 1
         return sample_id, patch_size, data, seg, data_result, seg_result
@@ -356,10 +313,7 @@ def augment_spatial(
     )
     dim = tf.cast(tf.shape(patch_size)[0], tf.int64)
     seg_result = nan
-
-    # TODO
-    # if isnotnan(seg):
-    if True:
+    if isnotnan(seg):
         seg_result = tf.cond(
             tf.equal(dim, tf.constant(2, dtype=tf.int64)),
             lambda: tf.zeros(

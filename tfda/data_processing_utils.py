@@ -872,7 +872,7 @@ def is_seg_intp(img, coords, order=3):
 
     i = tf.constant(0)
     _, _, _, result, _ = tf.while_loop(
-        cond_to_loop, body_fn, [img, i, coords, result, 3]
+        cond_to_loop, body_fn, [img, i, coords, result, order]
     )
     return result
 
