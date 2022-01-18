@@ -717,10 +717,54 @@ def augment_mirroring(
 
     sample_data, sample_seg = tf.cond(
         tf.logical_and(
-            tf.logical_and(
-                tf.reduce_any(tf.equal(axes, 2)),
-                tf.equal(tf.rank(sample_data), 4),
+            tf.reduce_any(tf.equal(axes, 2)),
+            tf.less(tf.random.uniform(()), 0.5),
+        ),
+        lambda: (
+            sample_data[:, :, ::-1],
+            tf.cond(
+                isnotnan(sample_seg),
+                lambda: sample_seg[:, :, ::-1],
+                lambda: sample_seg,
             ),
+        ),
+        lambda: (sample_data, sample_seg),
+    )
+
+    return sample_data, sample_seg
+
+
+@tf.function(experimental_follow_type_hints=True)
+def augment_mirroring_2D(
+    sample_data: tf.Tensor,
+    sample_seg: tf.Tensor = nan,
+    axes: tf.Tensor = (0, 1),
+) -> tf.Tensor:
+    # if (tf.rank(sample_data) != 3) and (tf.rank(sample_data) != 4):
+    #     tf.get_logger().warn(
+    #         "Invalid dimension for sample_data and sample_seg. sample_data and sample_seg should be either "
+    #         "[channels, x, y] or [channels, x, y, z]\n"
+    #         "return raw")
+    #     return sample_data, sample_seg
+    sample_data, sample_seg = tf.cond(
+        tf.logical_and(
+            tf.reduce_any(tf.equal(axes, 0)),
+            tf.less(tf.random.uniform(()), 0.5),
+        ),
+        lambda: (
+            sample_data[:, ::-1],
+            tf.cond(
+                isnotnan(sample_seg),
+                lambda: sample_seg[:, ::-1],
+                lambda: sample_seg,
+            ),
+        ),
+        lambda: (sample_data, sample_seg),
+    )
+
+    sample_data, sample_seg = tf.cond(
+        tf.logical_and(
+            tf.reduce_any(tf.equal(axes, 1)),
             tf.less(tf.random.uniform(()), 0.5),
         ),
         lambda: (
