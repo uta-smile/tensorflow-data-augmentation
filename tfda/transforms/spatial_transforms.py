@@ -316,7 +316,7 @@ class MirrorTransform(TFDABase):
         return TFDAData(data, seg)
 
 
-class MirrorTransform(TFDABase):
+class MirrorTransform2D(TFDABase):
     """Randomly mirrors data along specified axes. Mirroring is evenly distributed. Probability of mirroring along
     each axis is 0.5
 
