@@ -1815,7 +1815,7 @@ def crop(
     # all assertion is removed because it is unnecessary here
     if not isinstance(crop_size, tf.Tensor):
         crop_size = tf.convert_to_tensor(crop_size)
-    margins = tf.constant(tf.zeros(dim), dtype=tf.int64)
+    margins = tf.cast(tf.zeros(dim), dtype=tf.int64)
 
     data_return = tf.zeros(tf.concat([data_shape[:2], crop_size], axis=0))
     if seg is not nan:
