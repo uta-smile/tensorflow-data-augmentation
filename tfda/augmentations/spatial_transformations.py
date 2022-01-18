@@ -576,7 +576,7 @@ def augment_spatial_2D(
 
                 @tf.function
                 def body_fn_seg(channel_id, seg_sample):
-                    seg_channel = interpolate_img(
+                    seg_channel = interpolate_img_2d(
                         seg[sample_id, channel_id],
                         coords,
                         order_seg,
