@@ -115,7 +115,7 @@ def create_zero_centered_coordinate_mesh(shape: tf.Tensor) -> tf.Tensor:
 
 
 @tf.function(experimental_follow_type_hints=True)
-def create_zero_centered_coordinate_mesh2D(shape: tf.Tensor) -> tf.Tensor:
+def create_zero_centered_coordinate_mesh_2D(shape: tf.Tensor) -> tf.Tensor:
     tmp = tf.map_fn(
         lambda x: tf.range(x, dtype=tf.float32),
         shape,
@@ -160,7 +160,7 @@ def elastic_deform_coordinates(
 
 
 @tf.function(experimental_follow_type_hints=True)
-def elastic_deform_coordinates2D(
+def elastic_deform_coordinates_2D(
     coordinates: tf.Tensor, alpha: tf.Tensor, sigma: tf.Tensor
 ):
     coordinates = tf.cast(coordinates, tf.float32)
