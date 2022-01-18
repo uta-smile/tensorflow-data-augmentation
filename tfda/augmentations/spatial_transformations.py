@@ -117,7 +117,7 @@ def augment_spatial(
     ):
         patch_size = tf.cast(patch_size, tf.int64)
         coords = create_zero_centered_coordinate_mesh(patch_size)
-        # cshape = tf.concat([[coords.get_shape()[0]], patch_size], 0)
+
         modified_coords = False
 
         coords, modified_coords = tf.cond(
@@ -142,11 +142,7 @@ def augment_spatial(
             ),
             lambda: (
                 lambda a_x, a_y, a_z: (
-                    tf.cond(
-                        tf.equal(dim, 3),
-                        lambda: rotate_coords_3d(coords, a_x, a_y, a_z),
-                        lambda: coords,
-                    ),
+                    rotate_coords_3d(coords, a_x, a_y, a_z),
                     True,
                 )
             )(
@@ -169,7 +165,7 @@ def augment_spatial(
             lambda: (coords, modified_coords),
         )
 
-        tf.cond(
+        coords, modified_coords = tf.cond(
             tf.logical_and(
                 do_scale, tf.less(tf.random.uniform(()), p_scale_per_sample)
             ),
@@ -182,7 +178,7 @@ def augment_spatial(
                         ),
                     ),
                     lambda: tf.map_fn(
-                        lambda x: tf.cond(
+                        lambda _x: tf.cond(
                             tf.logical_and(
                                 tf.less(
                                     tf.random.uniform(()), tf.constant(0.5)
@@ -239,7 +235,7 @@ def augment_spatial(
                 coords_d = coords[d] + ctr
                 coords = update_tf_channel(coords, d, coords_d)
                 d = d + 1
-                coords.set_shape([3, None, None, None])
+                # coords.set_shape([3, None, None, None])
                 return d, coords
 
             _, coords = tf.while_loop(
@@ -250,7 +246,7 @@ def augment_spatial(
             )
             data_sample = tf.zeros(tf.shape(data_result)[1:])
             channel_id = tf.constant(0)
-            cond_to_loop_data = lambda channel_id, data_sample: tf.less(
+            cond_to_loop_data = lambda channel_id, _data_sample: tf.less(
                 channel_id, tf.shape(data)[1]
             )
 
@@ -376,19 +372,24 @@ def augment_spatial(
             ),
         )
 
-    data_result = tf.cond(
-        tf.equal(dim, tf.constant(2, dtype=tf.int64)),
-        lambda: tf.zeros(
-            tf.concat(
-                [tf.shape(data, out_type=tf.int64)[:2], patch_size[:2]], axis=0
-            )
-        ),
-        lambda: tf.zeros(
+    # data_result = tf.cond(
+    #     tf.equal(dim, tf.constant(2, dtype=tf.int64)),
+    #     lambda: tf.zeros(
+    #         tf.concat(
+    #             [tf.shape(data, out_type=tf.int64)[:2], patch_size[:2]], axis=0
+    #         )
+    #     ),
+    #     lambda: tf.zeros(
+    #         tf.concat(
+    #             [tf.shape(data, out_type=tf.int64)[:2], patch_size[:3]], axis=0
+    #         )
+    #     ),
+    # )
+    data_result = tf.zeros(
             tf.concat(
                 [tf.shape(data, out_type=tf.int64)[:2], patch_size[:3]], axis=0
             )
-        ),
-    )
+        )
     sample_num = tf.shape(data)[0]
     sample_id = tf.constant(0)
     _, _, _, _, data_result, seg_result = tf.while_loop(
