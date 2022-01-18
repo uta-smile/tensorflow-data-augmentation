@@ -876,6 +876,28 @@ def is_seg_intp(img, coords, order=3):
     )
     return result
 
+@tf.function
+def is_seg_intp_2d(img, coords, order=3):
+    unique_labels, _ = tf.unique(tf.reshape(img, (1, -1))[0])
+    # assert img is nan, f'{img}'
+    result = tf.zeros(tf.shape(coords)[1:], dtype=tf.float32)
+    cond_to_loop = lambda img, i, coords, result, order: tf.less(
+        i, tf.shape(unique_labels)[0]
+    )
+
+    def body_fn(img, i, coords, result, order):
+        img, _, coords, result, order = map_coordinates_seg_2d(
+            img, unique_labels[i], coords, result, 3
+        )  # here I force the order = 3
+        i = i + 1
+        return img, i, coords, result, order
+
+    i = tf.constant(0)
+    _, _, _, result, _ = tf.while_loop(
+        cond_to_loop, body_fn, [img, i, coords, result, 3]
+    )
+    return result
+
 
 @tf.function
 def interpolate_img(
@@ -883,16 +905,28 @@ def interpolate_img(
 ):
     return tf.cond(tf.logical_and(is_seg, tf.logical_not(tf.equal(order, 3))), lambda: is_seg_intp(img, coords, order), lambda: map_coordinates_img(img, coords, 3))
 
+@tf.function
+def interpolate_img_2d(
+    img, coords, order=3, mode="nearest", cval=0.0, is_seg=TFbF
+):
+    return tf.cond(tf.logical_and(is_seg, tf.logical_not(tf.equal(order, 3))), lambda: is_seg_intp_2d(img, coords, order), lambda: map_coordinates_img_2d(img, coords, 3))
 
 @tf.function
 def map_coordinates_seg(seg, cl, coords, result, order):
     cl_seg = tf.cast(tf.equal(seg, cl), dtype=tf.float32)
     # order = tf.cast(order, tf.int64)
-    new_seg = tf.cond(
-        tf.equal(tf.rank(seg), tf.constant(3)),
-        lambda: map_linear_coordinates_3d(cl_seg, coords),
-        lambda: map_coordinates_2d(cl_seg, coords, order),
+    new_seg = map_linear_coordinates_3d(cl_seg, coords)
+    indices = tf.where(tf.greater_equal(new_seg, tf.constant(0.5)))
+    result = tf.tensor_scatter_nd_update(
+        result, indices, tf.ones(tf.shape(indices)[0]) * cl
     )
+    return seg, cl, coords, result, order
+
+@tf.function
+def map_coordinates_seg_2d(seg, cl, coords, result, order):
+    cl_seg = tf.cast(tf.equal(seg, cl), dtype=tf.float32)
+    # order = tf.cast(order, tf.int64)
+    new_seg = map_coordinates_2d(cl_seg, coords, order)
     indices = tf.where(tf.greater_equal(new_seg, tf.constant(0.5)))
     result = tf.tensor_scatter_nd_update(
         result, indices, tf.ones(tf.shape(indices)[0]) * cl
@@ -903,11 +937,12 @@ def map_coordinates_seg(seg, cl, coords, result, order):
 @tf.function
 def map_coordinates_img(img, coords, order=3):
     # return tf.cond(tf.equal(tf.rank(img), tf.constant(3)), lambda: map_coordinates_3d(img, coords, order), lambda: map_coordinates_2d(img, coords, order))
-    return tf.cond(
-        tf.equal(tf.rank(img), tf.constant(3)),
-        lambda: map_linear_coordinates_3d(img, coords),
-        lambda: map_coordinates_2d(img, coords, order),
-    )
+    return map_linear_coordinates_3d(img, coords)
+
+@tf.function
+def map_coordinates_img_2d(img, coords, order=3):
+    # return tf.cond(tf.equal(tf.rank(img), tf.constant(3)), lambda: map_coordinates_3d(img, coords, order), lambda: map_coordinates_2d(img, coords, order))
+    return map_coordinates_2d(img, coords, order)
 
 
 @tf.function
@@ -1780,7 +1815,7 @@ def crop(
     # all assertion is removed because it is unnecessary here
     if not isinstance(crop_size, tf.Tensor):
         crop_size = tf.convert_to_tensor(crop_size)
-    margins = tf.constant([0, 0, 0], dtype=tf.int64)
+    margins = tf.constant(tf.zeros(dim), dtype=tf.int64)
 
     data_return = tf.zeros(tf.concat([data_shape[:2], crop_size], axis=0))
     if seg is not nan:

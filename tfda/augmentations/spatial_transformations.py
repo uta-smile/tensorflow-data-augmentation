@@ -53,6 +53,7 @@ from tfda.augmentations.utils import (
 from tfda.data_processing_utils import (
     center_crop_fn,
     interpolate_img,
+    interpolate_img_2d,
     random_crop_fn,
     update_tf_channel,
 )
@@ -545,7 +546,7 @@ def augment_spatial_2D(
 
             @tf.function
             def body_fn_data(channel_id, data_sample):
-                data_channel = interpolate_img(
+                data_channel = interpolate_img_2d(
                     data[sample_id, channel_id],
                     coords,
                     order_data,
