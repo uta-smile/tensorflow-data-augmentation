@@ -360,6 +360,42 @@ def gaussian_filter(
     )
 
 
+@tf.function(experimental_follow_type_hints=True, jit_compile=False)
+def gaussian_filter2d(
+    xxs: tf.Tensor,
+    sigma: tf.Tensor,
+    mode: tf.Tensor = 0,
+    cval: tf.Tensor = 0.0,
+    truncate: tf.Tensor = 4.0,
+) -> tf.Tensor:
+    """Gaussian filter trans from scipy gaussian filter.
+
+    mode 0: reflect padding.
+    mode 1: constant padding.
+
+    NOTE: only for 3 dim Tensor.
+    NOTE: jit false due to dynamic radius in kernel
+    """
+    xxs = tf.transpose(
+        tf.map_fn(
+            lambda xs: gaussian_filter1d(
+                tf.expand_dims(xs, axis=0), sigma, mode, cval, truncate
+            ),
+            tf.transpose(xxs, [1, 0]),
+        ),
+        [1, 0],
+    )
+    return tf.transpose(
+        tf.map_fn(
+            lambda xs: gaussian_filter1d(
+                tf.expand_dims(xs, axis=0), sigma, mode, cval, truncate
+            ),
+            tf.transpose(xxs, [0, 1]),
+        ),
+        [0, 1],
+    )
+
+
 if __name__ == "__main__":
     # Others
     import scipy.ndimage.filters as sf
