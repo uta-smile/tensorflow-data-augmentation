@@ -168,7 +168,7 @@ def elastic_deform_coordinates_2D(
     sigma = tf.cast(sigma, tf.float32)
     return (
         tf.map_fn(
-            lambda _: gaussian_filter(
+            lambda _: gaussian_filter_2D(
                 (tf.random.uniform(tf.shape(coordinates)[1:]) * 2 - 1),
                 sigma,
                 mode=1,
@@ -406,7 +406,7 @@ def gaussian_filter(
 
 
 @tf.function(experimental_follow_type_hints=True, jit_compile=False)
-def gaussian_filter2d(
+def gaussian_filter_2D(
     xxs: tf.Tensor,
     sigma: tf.Tensor,
     mode: tf.Tensor = 0,
