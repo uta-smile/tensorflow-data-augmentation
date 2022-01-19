@@ -17,7 +17,7 @@ class Convert3DTo2DTransform(TFDABase):
             dataset.data, (dshp[0], dshp[1] * dshp[2], dshp[3], dshp[4])
         )
 
-        shp = tf.shape(dataset.data)
+        shp = tf.shape(dataset.seg)
         seg = tf.reshape(
             dataset["seg"], (shp[0], shp[1] * shp[2], shp[3], shp[4])
         )
