@@ -205,19 +205,10 @@ def augment_spatial(
                             (), tf.maximum(scale[0], 1.0), scale[1]
                         ),
                     ),
-                    tf.range(dim, dtype=tf.float32),
                 )
-            else:
-                sc = tf.cond(
-                    tf.less(tf.random.uniform(()), 0.5)
-                    and tf.less(scale[0], 1.0),
-                    lambda: tf.random.uniform((), scale[0], 1.0),
-                    lambda: tf.random.uniform(
-                        (), tf.maximum(scale[0], 1.0), scale[1]
-                    ),
-                )
-            coords = scale_coords(coords, sc)
-            modified_coords = TFbT
+            ),
+            lambda: (coords, modified_coords),
+        )
 
         # add from here
         if modified_coords:
@@ -283,7 +274,9 @@ def augment_spatial(
             data_result = update_tf_channel(
                 data_result, sample_id, data_sample
             )
-            if isnotnan(seg):
+            # TODO
+            # if isnotnan(seg):
+            if True:
                 seg_sample = tf.zeros(tf.shape(seg_result)[1:])
                 channel_id = tf.constant(0)
                 cond_to_loop_seg = lambda channel_id, seg_sample: tf.less(
@@ -313,11 +306,15 @@ def augment_spatial(
                     seg_result, sample_id, seg_sample
                 )
         else:
-            s = nan
-            if tf.math.reduce_any(tf.math.is_nan(seg)):
-                s = nan
-            else:
-                s = seg[sample_id : sample_id + 1]
+            # TODO
+            # s = nan
+            # if tf.math.reduce_any(tf.math.is_nan(seg)):
+            #     s = nan
+            # else:
+            #     s = seg[sample_id : sample_id + 1]
+
+            s = seg[sample_id : sample_id + 1]
+
             # if random_crop:
             #     # margin = [patch_center_dist_from_border[d] - tf.cast(patch_size[d], dtype=tf.float32) // 2 for d in tf.range(dim)]
             #     margin = tf.map_fn(
@@ -338,7 +335,10 @@ def augment_spatial(
                 data[sample_id : sample_id + 1], patch_size, s
             )
             data_result = update_tf_channel(data_result, sample_id, d[0])
-            if isnotnan(seg):
+
+            # TODO
+            # if isnotnan(seg):
+            if True:
                 seg_result = update_tf_channel(seg_result, sample_id, s[0])
         sample_id = sample_id + 1
         return sample_id, patch_size, data, seg, data_result, seg_result
