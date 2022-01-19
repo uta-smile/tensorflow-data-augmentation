@@ -115,6 +115,30 @@ def create_zero_centered_coordinate_mesh(shape: tf.Tensor) -> tf.Tensor:
 
 
 @tf.function(experimental_follow_type_hints=True)
+def create_zero_centered_coordinate_mesh_2D(shape: tf.Tensor) -> tf.Tensor:
+    tmp = tf.map_fn(
+        lambda x: tf.range(x, dtype=tf.float32),
+        shape,
+        fn_output_signature=tf.RaggedTensorSpec(
+            shape=[None], dtype=tf.float32
+        ),
+    )
+
+    # TODO: change hardcode to others
+    # How to use *tmp in tensorflow graph?
+    # tf.meshgrid(*tmp, indexing="ij")
+    coords = tf.cast(
+        tf.meshgrid(tmp[0], tmp[1], indexing="ij"), dtype=tf.float32
+    )
+
+    return tf.map_fn(
+        lambda i: coords[to_tf_int(i)]
+        - ((to_tf_float(shape) - 1) / 2)[to_tf_int(i)],
+        tf.range(tf.shape(coords)[0], dtype=tf.float32),
+    )
+
+
+@tf.function(experimental_follow_type_hints=True)
 def elastic_deform_coordinates(
     coordinates: tf.Tensor, alpha: tf.Tensor, sigma: tf.Tensor
 ):
@@ -124,6 +148,27 @@ def elastic_deform_coordinates(
     return (
         tf.map_fn(
             lambda _: gaussian_filter(
+                (tf.random.uniform(tf.shape(coordinates)[1:]) * 2 - 1),
+                sigma,
+                mode=1,
+            )
+            * alpha,
+            tf.range(tf.shape(coordinates)[0], dtype=tf.float32),
+        )
+        + coordinates
+    )
+
+
+@tf.function(experimental_follow_type_hints=True)
+def elastic_deform_coordinates_2D(
+    coordinates: tf.Tensor, alpha: tf.Tensor, sigma: tf.Tensor
+):
+    coordinates = tf.cast(coordinates, tf.float32)
+    alpha = tf.cast(alpha, tf.float32)
+    sigma = tf.cast(sigma, tf.float32)
+    return (
+        tf.map_fn(
+            lambda _: gaussian_filter_2D(
                 (tf.random.uniform(tf.shape(coordinates)[1:]) * 2 - 1),
                 sigma,
                 mode=1,
@@ -357,6 +402,42 @@ def gaussian_filter(
             tf.transpose(xxs, [1, 0, 2]),
         ),
         [1, 0, 2],
+    )
+
+
+@tf.function(experimental_follow_type_hints=True, jit_compile=False)
+def gaussian_filter_2D(
+    xxs: tf.Tensor,
+    sigma: tf.Tensor,
+    mode: tf.Tensor = 0,
+    cval: tf.Tensor = 0.0,
+    truncate: tf.Tensor = 4.0,
+) -> tf.Tensor:
+    """Gaussian filter trans from scipy gaussian filter.
+
+    mode 0: reflect padding.
+    mode 1: constant padding.
+
+    NOTE: only for 3 dim Tensor.
+    NOTE: jit false due to dynamic radius in kernel
+    """
+    xxs = tf.transpose(
+        tf.map_fn(
+            lambda xs: gaussian_filter1d(
+                tf.expand_dims(xs, axis=0), sigma, mode, cval, truncate
+            ),
+            tf.transpose(xxs, [1, 0]),
+        ),
+        [1, 0],
+    )
+    return tf.transpose(
+        tf.map_fn(
+            lambda xs: gaussian_filter1d(
+                tf.expand_dims(xs, axis=0), sigma, mode, cval, truncate
+            ),
+            tf.transpose(xxs, [0, 1]),
+        ),
+        [0, 1],
     )
 
 
