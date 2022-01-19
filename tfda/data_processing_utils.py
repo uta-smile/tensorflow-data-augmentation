@@ -872,7 +872,29 @@ def is_seg_intp(img, coords, order=3):
 
     i = tf.constant(0)
     _, _, _, result, _ = tf.while_loop(
-        cond_to_loop, body_fn, [img, i, coords, result, order]
+        cond_to_loop, body_fn, [img, i, coords, result, 3]
+    )
+    return result
+
+@tf.function
+def is_seg_intp_2d(img, coords, order=3):
+    unique_labels, _ = tf.unique(tf.reshape(img, (1, -1))[0])
+    # assert img is nan, f'{img}'
+    result = tf.zeros(tf.shape(coords)[1:], dtype=tf.float32)
+    cond_to_loop = lambda img, i, coords, result, order: tf.less(
+        i, tf.shape(unique_labels)[0]
+    )
+
+    def body_fn(img, i, coords, result, order):
+        img, _, coords, result, order = map_coordinates_seg_2d(
+            img, unique_labels[i], coords, result, 3
+        )  # here I force the order = 3
+        i = i + 1
+        return img, i, coords, result, order
+
+    i = tf.constant(0)
+    _, _, _, result, _ = tf.while_loop(
+        cond_to_loop, body_fn, [img, i, coords, result, 3]
     )
     return result
 
