@@ -65,11 +65,15 @@ class TFDAData(tf.experimental.BatchableExtensionType):
     shape: tf.TensorShape
     data: tf.Tensor
     seg: tf.Tensor
+    odshp: tf.Tensor
+    osshp: tf.Tensor
 
-    def __init__(self, data: tf.Tensor = nan, seg: tf.Tensor = nan) -> None:
+    def __init__(self, data: tf.Tensor = nan, seg: tf.Tensor = nan, odshp: tf.Tensor = nan, osshp: tf.Tensor = nan) -> None:
         self.data = tf.convert_to_tensor(data)
         self.seg = tf.convert_to_tensor(seg)
         self.shape = self.data.shape
+        self.odshp = odshp
+        self.osshp = osshp
 
     def new_data(self, data: tf.Tensor) -> "TFDAData":
         """Replace data with new data."""

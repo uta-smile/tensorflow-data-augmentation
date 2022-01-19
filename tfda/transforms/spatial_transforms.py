@@ -268,7 +268,7 @@ class SpatialTransform2D(TFDABase):
         # if isnotnan(seg):
         if True:
             seg = ret_val[1]
-        return TFDAData(data, seg)
+        return TFDAData(data, seg, dataset.odshp, dataset.osshp)
 
 
 class MirrorTransform(TFDABase):
@@ -392,14 +392,14 @@ if __name__ == "__main__":
     # data_sample = next(di)
     # seg_sample = next(di)
 
-    data_sample = tf.random.uniform((1, 1, 70, 83, 64))
-    seg_sample = tf.random.uniform((1, 1, 70, 83, 64))
+    data_sample = tf.random.uniform((1, 2 * 2, 37, 37))
+    seg_sample = tf.random.uniform((1, 1 * 2, 37, 37))
 
-    sa = SpatialTransform(tf.cast([40, 56, 40], tf.int64), random_crop=TFbF)
+    sa = SpatialTransform2D(tf.cast([35, 35], tf.int64), random_crop=TFbF)
 
     # mirrored_strategy = tf.distribute.MirroredStrategy()
     # with mirrored_strategy.scope():
-    with tf.device("/CPU:0"):
+    with tf.device("/GPU:0"):
         tf.print(sa(TFDAData(data=data_sample, seg=seg_sample)))
         tf.print(test()["data"].shape)
 

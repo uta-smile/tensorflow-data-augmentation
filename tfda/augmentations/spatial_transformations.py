@@ -424,11 +424,14 @@ def augment_spatial_2D(
     def augment_per_sample(
         sample_id, patch_size, data, seg, data_result, seg_result
     ):
+        # tf.print(sample_id)
         patch_size = tf.cast(patch_size, tf.int64)
+        # tf.print('111')
         coords = create_zero_centered_coordinate_mesh_2D(patch_size)
 
         modified_coords = False
 
+        # tf.print('222')
         coords, modified_coords = tf.cond(
             tf.logical_and(
                 do_elastic_deform,
@@ -445,6 +448,7 @@ def augment_spatial_2D(
             lambda: (coords, modified_coords),
         )
 
+        # tf.print('333')
         coords, modified_coords = tf.cond(
             tf.logical_and(
                 do_rotation, tf.less(tf.random.uniform(()), p_rot_per_sample)
@@ -459,6 +463,7 @@ def augment_spatial_2D(
             lambda: (coords, modified_coords),
         )
 
+        # tf.print('444')
         coords, modified_coords = tf.cond(
             tf.logical_and(
                 do_scale, tf.less(tf.random.uniform(()), p_scale_per_sample)
@@ -501,6 +506,7 @@ def augment_spatial_2D(
             lambda: (coords, modified_coords),
         )
 
+        # tf.print('555')
         # add from here
         if modified_coords:
 
@@ -632,6 +638,7 @@ def augment_spatial_2D(
             if True:
                 seg_result = update_tf_channel(seg_result, sample_id, s[0])
         sample_id = sample_id + 1
+        # tf.print('666')
         return sample_id, patch_size, data, seg, data_result, seg_result
 
     # spatial augment main body
@@ -782,13 +789,16 @@ def augment_mirroring_2D(
 
 
 if __name__ == "__main__":
-    data = tf.ones([1, 1, 70, 83, 64])
-    seg = tf.ones([1, 1, 70, 83, 64])
-    patch_size = tf.cast([40, 56, 40], tf.int64)
+    data = tf.ones([1, 40, 36, 36])
+    seg = tf.ones([1, 40, 36, 36])
+    patch_size = tf.cast([20, 20], tf.int64)
     # mirrored_strategy = tf.distribute.MirroredStrategy()
 
     with tf.device("/CPU:0"):
         # with mirrored_strategy.scope():
-        tf.print(augment_spatial(data, seg, patch_size, random_crop=TFbF))
+        tf.config.run_functions_eagerly(True)
+        data, seg = augment_spatial_2D(data, seg, patch_size, random_crop=TFbF)
+        tf.print(tf.shape(data), tf.shape(seg))
+        tf.config.run_functions_eagerly(False)
         # augment_spatial(data, seg, patch_size)
         # augment_spatial(data, seg, patch_size)
