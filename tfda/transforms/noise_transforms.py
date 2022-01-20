@@ -120,6 +120,41 @@ class GaussianBlurTransform(TFDABase):
         )
 
 
+class GaussianBlurTransform2D(TFDABase):
+    def __init__(
+        self,
+        blur_sigma: tf.Tensor = (1.0, 5.0),
+        different_sigma_per_channel: tf.Tensor = True,
+        different_sigma_per_axis: tf.Tensor = False,
+        **kws,
+    ) -> None:
+        super().__init__(
+            blur_sigma=blur_sigma,
+            per_channel=different_sigma_per_channel,
+            **kws,
+        )
+        self.different_sigma_per_axis = different_sigma_per_axis
+
+    @tf.function(experimental_follow_type_hints=True)
+    def call(self, dataset: TFDAData) -> TFDAData:
+        """Call the transform."""
+        return dataset.new_data(
+            tf.map_fn(
+                lambda x: tf.cond(
+                    tf.less(tf.random.uniform(()), self.defs.p_per_sample),
+                    lambda: augment_gaussian_blur(
+                        x,
+                        self.defs.blur_sigma,
+                        self.defs.per_channel,
+                        self.defs.p_per_channel,
+                    ),
+                    lambda: x,
+                ),
+                dataset.data,
+            )
+        )
+
+
 if __name__ == "__main__":
     with tf.device("/CPU:0"):
         dataset = next(

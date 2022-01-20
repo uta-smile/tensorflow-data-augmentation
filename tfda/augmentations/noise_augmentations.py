@@ -41,7 +41,7 @@ import tensorflow as tf
 
 # Local
 # tf.debugging.set_log_device_placement(True)
-from tfda.augmentations.utils import gaussian_filter, get_range_val
+from tfda.augmentations.utils import gaussian_filter, gaussian_filter_2D, get_range_val
 from tfda.defs import nan
 from tfda.utils import isnotnan
 
@@ -113,6 +113,34 @@ def augment_gaussian_blur(
         lambda x: tf.cond(
             tf.less(tf.random.uniform(()), p_per_channel),
             lambda: gaussian_filter(
+                x,
+                sigma=tf.cond(
+                    per_channel,
+                    lambda: get_range_val(sigma_range),
+                    lambda: sigma,
+                ),
+            ),
+            lambda: x,
+        ),
+        data_sample,
+    )
+
+@tf.function(experimental_follow_type_hints=True)
+def augment_gaussian_blur_2D(
+    data_sample: tf.Tensor,
+    sigma_range: tf.Tensor,
+    per_channel: tf.Tensor = True,
+    p_per_channel: tf.Tensor = 1.0,
+    # TODO: not used
+    different_sigma_per_axis: tf.Tensor = False,
+    p_isotropic: tf.Tensor = 0.0,
+):
+    sigma = get_range_val(sigma_range)
+
+    return tf.map_fn(
+        lambda x: tf.cond(
+            tf.less(tf.random.uniform(()), p_per_channel),
+            lambda: gaussian_filter_2D(
                 x,
                 sigma=tf.cond(
                     per_channel,
