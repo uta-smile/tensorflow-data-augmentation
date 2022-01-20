@@ -4,6 +4,7 @@ import tensorflow as tf
 # Local
 from tfda.augmentations.resample_augmentations import (
     augment_linear_downsampling_scipy,
+    augment_linear_downsampling_scipy_2D,
 )
 from tfda.base import TFDABase
 from tfda.defs import TFbT, TFDAData, nan
@@ -65,6 +66,62 @@ class SimulateLowResolutionTransform(TFDABase):
                 dataset.data,
             )
         )
+
+
+class SimulateLowResolutionTransform2D(TFDABase):
+    """Downsamples each sample (linearly) by a random factor and upsamples to original resolution again
+    (nearest neighbor)
+
+    Info:
+    * Uses scipy zoom for resampling.
+    * Resamples all dimensions (channels, x, y, z) with same downsampling factor (like isotropic=True from
+    linear_downsampling_generator_nilearn)
+
+    Args:
+        zoom_range: can be either tuple/list/np.ndarray or tuple of tuple. If tuple/list/np.ndarray, then the zoom
+        factor will be sampled from zoom_range[0], zoom_range[1] (zoom < 0 = downsampling!). If tuple of tuple then
+        each inner tuple will give a sampling interval for each axis (allows for different range of zoom values for
+        each axis
+
+        p_per_channel:
+
+        per_channel (bool): whether to draw a new zoom_factor for each channel or keep one for all channels
+
+        channels (list, tuple): if None then all channels can be augmented. If list then only the channel indices can
+        be augmented (but may not always be depending on p_per_channel)
+
+        order_downsample:
+
+        order_upsample:
+    """
+
+    def __init__(self, channels: tf.Tensor = [nan], **kws) -> None:
+        super().__init__(**kws)
+        self.channels = tf.convert_to_tensor(channels)
+
+    @tf.function(experimental_follow_type_hints=True)
+    def call(self, dataset: TFDAData) -> TFDAData:
+        """Call the transform."""
+        return dataset.new_data(
+            tf.map_fn(
+                lambda xs: tf.cond(
+                    tf.less(tf.random.uniform(()), self.defs.p_per_sample),
+                    lambda: augment_linear_downsampling_scipy_2D(
+                        xs,
+                        zoom_range=self.defs.zoom_range,
+                        per_channel=self.defs.per_channel,
+                        p_per_channel=self.defs.p_per_channel,
+                        channels=self.channels,
+                        order_downsample=self.defs.order_downsample,
+                        order_upsample=self.defs.order_upsample,
+                        ignore_axes=self.defs.ignore_axes,
+                    ),
+                    lambda: xs,
+                ),
+                dataset.data,
+            )
+        )
+
 
 
 if __name__ == "__main__":
