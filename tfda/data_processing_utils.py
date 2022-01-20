@@ -898,28 +898,6 @@ def is_seg_intp_2d(img, coords, order=3):
     )
     return result
 
-@tf.function
-def is_seg_intp_2d(img, coords, order=3):
-    unique_labels, _ = tf.unique(tf.reshape(img, (1, -1))[0])
-    # assert img is nan, f'{img}'
-    result = tf.zeros(tf.shape(coords)[1:], dtype=tf.float32)
-    cond_to_loop = lambda img, i, coords, result, order: tf.less(
-        i, tf.shape(unique_labels)[0]
-    )
-
-    def body_fn(img, i, coords, result, order):
-        img, _, coords, result, order = map_coordinates_seg_2d(
-            img, unique_labels[i], coords, result, 3
-        )  # here I force the order = 3
-        i = i + 1
-        return img, i, coords, result, order
-
-    i = tf.constant(0)
-    _, _, _, result, _ = tf.while_loop(
-        cond_to_loop, body_fn, [img, i, coords, result, 3]
-    )
-    return result
-
 
 @tf.function
 def interpolate_img(
@@ -948,7 +926,8 @@ def map_coordinates_seg(seg, cl, coords, result, order):
 def map_coordinates_seg_2d(seg, cl, coords, result, order):
     cl_seg = tf.cast(tf.equal(seg, cl), dtype=tf.float32)
     # order = tf.cast(order, tf.int64)
-    new_seg = map_linear_coordinates_2d(cl_seg, coords)
+    # new_seg = map_linear_coordinates_2d(cl_seg, coords)
+    new_seg = map_coordinates_2d(cl_seg, coords)
     indices = tf.where(tf.greater_equal(new_seg, tf.constant(0.5)))
     result = tf.tensor_scatter_nd_update(
         result, indices, tf.ones(tf.shape(indices)[0]) * cl
@@ -964,7 +943,8 @@ def map_coordinates_img(img, coords, order=3):
 @tf.function
 def map_coordinates_img_2d(img, coords, order=3):
     # return tf.cond(tf.equal(tf.rank(img), tf.constant(3)), lambda: map_coordinates_3d(img, coords, order), lambda: map_coordinates_2d(img, coords, order))
-    return map_linear_coordinates_2d(img, coords)
+    # return map_linear_coordinates_2d(img, coords)
+    return map_coordinates_2d(img, coords)
 
 
 @tf.function
@@ -2560,7 +2540,7 @@ def main():
     tf_time = tf_end - tf_start
     print(tf_time)
     """
-    
+
     image = tf.random.uniform((10, 20, 10))
     x, y, z = tf.meshgrid(tf.range(tf.shape(image)[0]), tf.range(tf.shape(image)[1]), tf.range(tf.shape(image)[2]), indexing='ij')
     xyz = tf.stack([x, y, z])
