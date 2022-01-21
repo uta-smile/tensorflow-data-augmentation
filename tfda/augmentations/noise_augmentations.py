@@ -112,7 +112,7 @@ def augment_gaussian_blur(
     return tf.map_fn(
         lambda x: tf.cond(
             tf.less(tf.random.uniform(()), p_per_channel),
-            lambda: gaussian_filter(
+            lambda: gaussian_filter_2D(
                 x,
                 sigma=tf.cond(
                     per_channel,
