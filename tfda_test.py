@@ -55,14 +55,14 @@ from tfda.transforms.color_transforms import (
     ContrastAugmentationTransform,
     GammaTransform,
 )
-from tfda.transforms.custom_transforms import MaskTransform, OneHotTransform
+from tfda.transforms.custom_transforms import MaskTransform, OneHotTransform, OneHotTransform2D
 from tfda.transforms.noise_transforms import (
-    GaussianBlurTransform,
+    GaussianBlurTransform, GaussianBlurTransform2D,
     GaussianNoiseTransform,
 )
-from tfda.transforms.resample_transforms import SimulateLowResolutionTransform
+from tfda.transforms.resample_transforms import SimulateLowResolutionTransform, SimulateLowResolutionTransform2D
 from tfda.transforms.spatial_transforms import (
-    MirrorTransform,
+    MirrorTransform, MirrorTransform2D,
     SpatialTransform,
 )
 from tfda.transforms.utility_transforms import RemoveLabelTransform
@@ -94,7 +94,7 @@ def all_da():
         [
             tf.keras.layers.Input(
                 type_spec=TFDAData.Spec(
-                    None, tf.TensorSpec(None), tf.TensorSpec(None)
+                    None, tf.TensorSpec(None), tf.TensorSpec(None), tf.TensorSpec(None), tf.TensorSpec(None)
                 )
             ),
             # SpatialTransform(
@@ -123,7 +123,7 @@ def all_da():
             #     independent_scale_for_each_axis=params.independent_scale_factor_for_each_axis,
             # ),
             GaussianNoiseTransform(p_per_channel=0.01),
-            GaussianBlurTransform(
+            GaussianBlurTransform2D(
                 (0.5, 1.0),
                 different_sigma_per_channel=True,
                 p_per_sample=0.2,
@@ -133,7 +133,7 @@ def all_da():
                 multiplier_range=(0.75, 1.25), p_per_sample=0.15
             ),
             ContrastAugmentationTransform(p_per_sample=0.15),
-            SimulateLowResolutionTransform(
+            SimulateLowResolutionTransform2D(
                 zoom_range=(0.5, 1),
                 per_channel=True,
                 p_per_channel=0.5,
@@ -147,12 +147,12 @@ def all_da():
             GammaTransform(
                 (0.7, 1.5), False, True, retain_stats=True, p_per_sample=0.3
             ),
-            MirrorTransform((0, 1, 2)),
+            MirrorTransform2D((0, 1, 2)),
             MaskTransform(
                 tf.constant([[0, 0]]), mask_idx_in_seg=0, set_outside_to=0.0
             ),
             RemoveLabelTransform(-1, 0),
-            OneHotTransform(),
+            OneHotTransform2D([0, 1]),
         ]
     )
     da.compile()
@@ -164,7 +164,6 @@ def all_da():
         )
         .batch(64)
         .batch(80)
-        .batch(73)
         .batch(1)
         .batch(8)
         .map(lambda x: da(TFDAData(x, x)))
@@ -194,8 +193,8 @@ def all_da():
 def test():
     # strategy = tf.distribute.MirroredStrategy()
     # with strategy.scope():
-    # with tf.device("/CPU:0"):
-    res = all_da()
+    with tf.device("/CPU:0"):
+        res = all_da()
     # import pdb;pdb.set_trace()
 
 

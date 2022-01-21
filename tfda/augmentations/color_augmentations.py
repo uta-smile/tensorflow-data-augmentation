@@ -297,19 +297,20 @@ def augment_gamma(
 
 def test():
     """Test."""
-    dataset = (
-        tf.data.Dataset.range(10, output_type=tf.float32).batch(5).batch(2)
-    )
-    data_sample = next(iter(dataset))[0]
+    # dataset = (
+    #     tf.data.Dataset.range(10, output_type=tf.float32).batch(5).batch(2)
+    # )
+    # data_sample = next(iter(dataset))[0]
+    data = tf.random.uniform((1, 320, 320))
     mu = tf.cast(0, tf.float32)
     sigma = tf.cast(0.1, tf.float32)
 
     with tf.device("/CPU:0"):
         # https://github.com/tensorflow/tensorflow/issues/49202
-        tf.print(augment_gamma(data_sample).shape)
-        tf.print(augment_contrast(data_sample).shape)
-        tf.print(augment_brightness_additive(data_sample, mu, sigma).shape)
-        tf.print(augment_brightness_multiplicative(data_sample).shape)
+        tf.print(augment_gamma(data).shape)
+        # tf.print(augment_contrast(data_sample).shape)
+        # tf.print(augment_brightness_additive(data_sample, mu, sigma).shape)
+        # tf.print(augment_brightness_multiplicative(data_sample).shape)
 
 
 if __name__ == "__main__":

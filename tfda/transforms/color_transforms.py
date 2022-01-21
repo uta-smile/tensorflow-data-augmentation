@@ -212,27 +212,27 @@ if __name__ == "__main__":
     # Local
     from tfda.base import Compose
 
-    ts = Compose(
-        [
-            tf.keras.layers.Input(
-                type_spec=TFDAData.Spec(
-                    None, tf.TensorSpec(None), tf.TensorSpec(None)
-                )
-            ),
-            ContrastAugmentationTransform(),
-            BrightnessTransform(0, 0.1),
-            BrightnessMultiplicativeTransform(
-                multiplier_range=(0.75, 1.25), p_per_sample=0.2
-            ),
-        ]
-    )
+    # ts = Compose(
+    #     [
+    #         tf.keras.layers.Input(
+    #             type_spec=TFDAData.Spec(
+    #                 None, tf.TensorSpec(None), tf.TensorSpec(None)
+    #             )
+    #         ),
+    #         ContrastAugmentationTransform(),
+    #         BrightnessTransform(0, 0.1),
+    #         BrightnessMultiplicativeTransform(
+    #             multiplier_range=(0.75, 1.25), p_per_sample=0.2
+    #         ),
+    #     ]
+    # )
 
     with tf.device("/CPU:0"):
-        tf.print(ts(TFDAData(data=data_sample)))
+        # tf.print(ts(TFDAData(data=data_sample)))
 
-        images = tf.random.uniform((8, 2, 20, 376, 376))
+        images = tf.random.uniform((8, 20, 376, 376))
         labels = tf.random.uniform(
-            (8, 1, 20, 376, 376), minval=0, maxval=2, dtype=tf.int32
+            (8, 20, 376, 376), minval=0, maxval=2, dtype=tf.int32
         )
         data_dict = TFDAData(images, labels)
         tf.print(data_dict)  # (8, 2, 20, 376, 376) (8, 1, 20, 376, 376)
