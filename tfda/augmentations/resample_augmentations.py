@@ -296,10 +296,11 @@ def augment_linear_downsampling_scipy_2D(
 @tf.function(experimental_follow_type_hints=True)
 def volume_resize_2D(input_data: tf.Tensor, target_shape: tf.Tensor, method: str):
     target_shape = tf.cast(target_shape, tf.int32)
-    image = tf.expand_dims(input_data,axis=-1)
+    input_data = input_data[tf.newaxis]
+    image = tf.transpose(input_data, perm=[1, 2, 0])
     image = tf.image.resize(image, target_shape, method=method)
-    image = image[:,:,0]
-    return image
+    image = tf.transpose(image, perm=[2, 0, 1])
+    return image[0]
 
 
 
