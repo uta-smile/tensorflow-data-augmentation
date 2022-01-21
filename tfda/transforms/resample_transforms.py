@@ -1,6 +1,8 @@
 # Tensorflow
 import tensorflow as tf
 
+tf.config.run_functions_eagerly(True)
+
 # Local
 from tfda.augmentations.resample_augmentations import (
     augment_linear_downsampling_scipy,
@@ -10,7 +12,6 @@ from tfda.base import TFDABase
 from tfda.defs import TFbT, TFDAData, nan
 from tfda.utils import isnan, isnotnan
 
-# tf.config.run_functions_eagerly(True)
 
 
 class SimulateLowResolutionTransform(TFDABase):
@@ -126,22 +127,31 @@ class SimulateLowResolutionTransform2D(TFDABase):
 
 if __name__ == "__main__":
     with tf.device("/CPU:0"):
-        images = tf.random.uniform((8, 2, 20, 376, 376))
+        images = tf.random.uniform((8, 2, 376, 376))
         labels = tf.random.uniform(
-            (8, 1, 20, 376, 376), minval=0, maxval=2, dtype=tf.float32
+            (8, 1, 376, 376), minval=0, maxval=2, dtype=tf.float32
         )
         data_dict = TFDAData(images, labels)
         tf.print(
             data_dict, data_dict["data"].shape, data_dict["seg"].shape
         )  # (8, 2, 20, 376, 376) (8, 1, 20, 376, 376)
-        data_dict = SimulateLowResolutionTransform(
+        # data_dict = SimulateLowResolutionTransform(
+        #     zoom_range=(0.5, 1),
+        #     per_channel=True,
+        #     p_per_channel=0.5,
+        #     order_downsample=0,
+        #     order_upsample=3,
+        #     p_per_sample=0.25,
+        #     ignore_axes=(0,),
+        # )(data_dict)
+        data_dict = SimulateLowResolutionTransform2D(
             zoom_range=(0.5, 1),
             per_channel=True,
             p_per_channel=0.5,
             order_downsample=0,
             order_upsample=3,
             p_per_sample=0.25,
-            ignore_axes=(0,),
+            ignore_axes=nan,
         )(data_dict)
         tf.print(
             data_dict, data_dict["data"].shape, data_dict["seg"].shape
