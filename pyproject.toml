@@ -1,6 +1,6 @@
 [project]
 name = "tfda"
-version = "0.0.7"
+version = "0.0.8"
 description = "Tensorflow data augmentation"
 authors = [
     {name = "Nasy", email = "nasyxx+smile@gmail.com"},
