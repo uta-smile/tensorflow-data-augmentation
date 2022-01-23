@@ -2086,6 +2086,30 @@ def get_lbs_for_random_crop(crop_size, data_shape, margins):
 
 
 @tf.function
+def dilation(inputs, filter_size):
+    return tf.nn.max_pool3d(inputs, ksize=[filter_size, filter_size, filter_size], strides=[1, 1, 1], padding='SAME', data_format='NCDHW')
+
+@tf.function
+def erosion(inputs, filter_size):
+    x = 1.0 - inputs
+    x = tf.nn.max_pool3d(x, ksize=[filter_size, filter_size, filter_size], strides=[1, 1, 1], padding='SAME', data_format='NCDHW')
+    x = 1.0 - x
+    return x
+
+@tf.function
+def opening(inputs, filter_size):
+    x = erosion(inputs, filter_size)
+    x = dilation(x, filter_size)
+    return x
+
+@tf.function
+def closing(inputs, filter_size):
+    x = dilation(inputs, filter_size)
+    x = erosion(x, filter_size)
+    return x
+
+
+@tf.function
 def create_zero_centered_coordinate_mesh(shape):
     coords = tf.convert_to_tensor(
         tf.meshgrid(
