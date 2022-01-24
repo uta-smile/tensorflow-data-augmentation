@@ -53,3 +53,22 @@ def do_rest_operation(data, res, workon, other_idx, other_indexes):
 @tf.function
 def do_operation(data, kernel_size, branch_idx):
     return tf.switch_case(branch_idx, branch_fns={0: lambda: erosion(data, kernel_size), 1: lambda: dilation(data, kernel_size), 2: lambda: opening(data, kernel_size), 3: lambda: closing(data, kernel_size)})
+
+@tf.function
+def augment_move_seg_as_onehot_data_batch(seg, all_seg_labels):
+    seg_channel = tf.map_fn(
+        lambda c: augment_move_seg_as_onehot_data_channel(seg, all_seg_labels[c]),
+        elems=tf.range(tf.shape(all_seg_labels)[0]),
+        dtype=tf.float32
+    )
+    return seg_channel
+
+@tf.function
+def augment_move_seg_as_onehot_data_channel(seg, seg_label):
+    indices = tf.where(tf.equal(seg, seg_label))
+    seg_result = tf.tensor_scatter_nd_update(seg, indices, tf.ones(tf.shape(indices)[0]))
+    return seg_result
+
+@tf.function
+def do_remove_from_origin(seg, channel_idx):
+    return tf.concat([seg[:, :channel_idx], seg[:, channel_idx+1:]], axis=1)
