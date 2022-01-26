@@ -81,8 +81,8 @@ class RemoveRandomConnectedComponentFromOneHotEncodingTransform(TFDABase):
     def map1(self, data, b) -> tf.Tensor:
         return tf.cond(
             tf.less(tf.random.uniform(()), self.defs.p_per_sample),
-            lambda: tf.map_fn(
-                lambda c: self.map2(data, b, c), tf.shape(data)[1]
+            lambda: tf.foldl(
+                lambda a, c: self.fold1(a, b, c), tf.shape(data)[1], data[b]
             ),
             lambda: data[b],
         )
@@ -95,6 +95,14 @@ class RemoveRandomConnectedComponentFromOneHotEncodingTransform(TFDABase):
             lambda: data[b, c],
         )
 
+    @tf.function
+    def fold1(self, data, b, c) -> tf.Tensor:
+        return tf.cond(
+            tf.less(tf.random.uniform(()), self.p_per_label),
+            lambda: self.cond1(data, b, c),
+            lambda: data[b],
+        )
+
     @tf.funcion
     def cond1(self, data, b, c) -> tf.Tensor:
         workon = tf.identity(data[b, c])
@@ -104,7 +112,7 @@ class RemoveRandomConnectedComponentFromOneHotEncodingTransform(TFDABase):
         return tf.cond(
             tf.greater(num_comp, 0),
             lambda: self.cond2(data, b, c, lab, num_comp, num_voxels),
-            lambda: data[b, c],
+            lambda: data[b],
         )
 
     @tf.function
@@ -137,22 +145,28 @@ class RemoveRandomConnectedComponentFromOneHotEncodingTransform(TFDABase):
         return tf.cond(
             tf.greater(length, 0),
             lambda: self.cond3(data, b, c, lab, component_ids),
-            lambda: data[b, c],
+            lambda: data[b],
         )
 
     @tf.function
     def cond3(self, data, b, c, lab, component_ids) -> tf.Tensor:
         idx = tf.random.normal((), 0, tf.size(component_ids), tf.int32)
-        databc = tf.where(tf.equal(lab, component_ids[idx]), 0, data[b, c])
+
         other_ch = tf.where(tf.not_equal(self.channel_idx, c))
         oidx = tf.random.normal((), 0, tf.shape(other_ch)[0], tf.int32)
 
-        databo = tf.cond(
-            tf.greater(tf.size(other_ch), 0),
-            lambda: tf.where(
-                tf.equal(lab, component_ids[idx]), 1, data[b, other_ch[oidx]]
-            ),
+        oi = tf.cond(
+            tf.greater(tf.size(other_ch), 0), lambda: other_ch[oidx], lambda: 0
         )
+
+        datab0 = data[b, 0]
+
+        datab = tf.cond(
+            tf.equal(lab, component_ids[idx]),
+            lambda: tf.tensor_scatter_nd_update(data[b], [[c], [oi]], [0, 1]),
+            lambda: data[b],
+        )
+        return tf.tensor_scatter_nd_update(datab, [[0]], [datab0])
 
 
 class ApplyRandomBinaryOperatorTransform(TFDABase):
