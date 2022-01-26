@@ -2,9 +2,9 @@
 import tensorflow as tf
 
 # Local
+from tfda.augmentations.utils import to_one_hot
 from tfda.base import TFDABase
 from tfda.defs import DTFT, TFDAData
-from tfda.augmentations.utils import to_one_hot
 
 
 class Convert3DTo2DTransform(TFDABase):
@@ -36,7 +36,13 @@ class Convert2DTo3DTransform(TFDABase):
         current_shape = tf.shape(data_dict.data)
         reshape_data = tf.reshape(
             data_dict.data,
-            (odshp[0], odshp[1], odshp[2], current_shape[-2], current_shape[-1]),
+            (
+                odshp[0],
+                odshp[1],
+                odshp[2],
+                current_shape[-2],
+                current_shape[-1],
+            ),
         )
         osshp = data_dict.osshp
         current_shape_seg = tf.shape(data_dict.seg)
@@ -166,6 +172,7 @@ class MaskTransform(TFDABase):
 
 class OneHotTransform(TFDABase):
     """One hot and transpose transform."""
+
     def __init__(self, all_seg_labels: tuple, **kws) -> None:
         super().__init__(**kws)
         self._all_seg_labels = all_seg_labels
@@ -177,7 +184,6 @@ class OneHotTransform(TFDABase):
         seg = to_one_hot(dataset.seg[:, 0], self._all_seg_labels)
         seg = tf.transpose(seg, (0, 2, 3, 4, 1))
         return TFDAData(data, seg)
-
 
 
 if __name__ == "__main__":

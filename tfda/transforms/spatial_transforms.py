@@ -45,8 +45,10 @@ from typing import Tuple
 # Local
 # tf.debugging.set_log_device_placement(True)
 from tfda.augmentations.spatial_transformations import (
-    augment_mirroring, augment_mirroring_2D,
-    augment_spatial, augment_spatial_2D,
+    augment_mirroring,
+    augment_mirroring_2D,
+    augment_spatial,
+    augment_spatial_2D,
 )
 from tfda.base import TFDABase
 from tfda.defs import TFbF, TFbT, TFDAData, nan, pi
